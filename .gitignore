@@ -1,8 +1,0 @@
-TODO/*
-node_modules/*
-.idea/
-.vscode/*
-.env
-.DS_Store
-package-lock.json
-*.db
