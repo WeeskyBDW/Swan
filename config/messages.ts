@@ -1,219 +1,206 @@
 import { Identifiers } from '@sapphire/framework';
 import { stripIndent } from 'common-tags';
 
-export default {
-  global: {
-    oops: process.env.NODE_ENV === 'production'
+export const global = {
+  oops:
+    process.env.NODE_ENV === 'production'
       ? stripIndent`
-        :warning: Oups... Quelque chose s'est mal passé en réalisant cette action. Il se peut qu'elle ne se soit pas complètement terminée, voire pas commencée.
-        > (Cc: <@188341077902753794>, <@191495299884122112>)`
+      :warning: Oups... Quelque chose s'est mal passé en réalisant cette action. Il se peut qu'elle ne se soit pas complètement terminée, voire pas commencée.
+      > (Cc: <@188341077902753794>, <@191495299884122112>)`
       : ":warning: Oups... Quelque chose s'est mal passé en réalisant cette action. Il se peut qu'elle ne se soit pas complètement terminée, voire pas commencée.",
-    insufficientClientPermissions: "Je n'ai pas les permissions Discord nécessaires pour exécuter la commande {command.details.name}. (Permissions manquantes : {permissions})",
-    memberTooPowerful: "Je ne peux pas effectuer cette action pour ce membre ! Il se peut qu'il ait des permissions supérieures ou égales aux tiennes.",
-    dmAreClosed: "{member}, je ne peux pas t'envoyer les informations car tes messages privés sont restreints ! Pense bien à les activer :)",
-    unknownName: 'Pseudo inconnu',
-    everyone: 'Tout le monde',
-    unknown: (feminine = false): string => `Inconnu${feminine ? 'e' : ''}`,
-    noReason: 'Aucune raison spécifiée.',
-    impossibleBecauseBanned: "Impossible d'effectuer cette action car le membre est banni.",
-    executedBy: 'Exécuté par {member.displayName}',
-  },
-  errors: {
-    precondition: {
-      [Identifiers.PreconditionRole]: ":x: Aïe, tu n'as pas la permission de faire cela :confused:",
-      [Identifiers.PreconditionNotRole]: ":x: Aïe, tu n'as pas le droit d'exécuter cette commande :confused:",
-      [Identifiers.PreconditionNotLoading]: 'Attends un peu, le temps que je finisse de me réveiller...',
-      [Identifiers.PreconditionChannelRules]: ':x: Aïe, cette commande est désactivée dans ce salon :confused:',
-      [Identifiers.PreconditionGuildOnly]: ':x: Aïe, cette commande ne peut être utilisée que dans un serveur :confused:',
-      [Identifiers.PreconditionCooldown]: 'Pas si vite ! Cette commande est sous cooldown, attendez un peu avant de la réutiliser.',
-      unknownError: "Une pré-condition de commande inconnue t'empêche d'effectuer cette action.",
-    },
-  },
-  miscellaneous: {
-    noDescription: 'Aucune description disponible.',
-    noDocLink: stripIndent`
-      Tu ne peux pas poster ce lien ! Utilise plutôt la commande de documentation de Swan.
-      Si la documentation de Skript-MC est incomplète, demande l'accès en écriture à Vengelis afin de l'améliorer.
-      Voici ton message, si tu souhaites le récupérer : \`\`\`
-      {content}
-      \`\`\`
-    `,
-    noSpam: "Merci d'éviter les messages inutiles dans le salon des snippets. Ton message ne contient aucun bloc de code... Comment veux-tu partager ton script sans bloc de code ? Si tu ne sais pas comment faire, regarde ici : <https://support.discord.com/hc/fr/articles/210298617>.",
-    invalidMessage: 'Ton message ne respecte pas le règlement du salon {message.channel}, il a donc été supprimé. Tu peux réessayer ou contacter un modérateur Discord pour en savoir plus.',
-    wrongUserInteractionReply: 'Tu ne peux pas cliquer sur ces boutons, ils sont réservés à {user}.',
-    commandSuggestion: "Je n'ai pas trouvé de commande qui correspond à {commandName}... :confused: Voulais tu dire {commandList} ?\n:information_source: Clique sur les réactions pour lancer la commande associée.",
-    ghostPingSingular: ':warning: {mentions}, tu as été ghost-ping par {user.username}. :innocent:',
-    ghostPingPlural: ':warning: {mentions}, vous avez été ghost-ping par {user.username}. :innocent:',
-    separator: ' • ',
-    renamed: stripIndent`
-      Ton pseudonyme contenait des caractères spéciaux, donc je me suis permis de te les retirer (voire de te renommer complètement), pour que ce soit plus simple de te mentionner. J'espère que mes modifications te plairont.
-      Si malheureusement ce n'est pas le cas, tu peux demander à un modérateur Discord (pseudonymes vert clair) pour être renommé.`,
-    renameList: [
-      'Arachnoïde',
-      'Banjo',
-      'Bizu',
-      'Boulet',
-      'Licorne',
-      'Quiche',
-      'Saperlipopette',
-      'Tarentule',
-      'Tarte',
-    ],
-    greetings: [
-      '{member} arrive, faites comme si vous étiez occupés ! :books:',
-      "Aujourd'hui, nous accueillons {member} !",
-      'On dit bonjour à {member}. *Tous en choeur* Boooonnnjouuuur {member}...',
-      'Holà {member} ! Bienvenue !',
-      "On t'attendait, {member} ! Prend place.",
-      'Bienvenue sur Skript-MC, {member} !',
-      '{member} rejoint la fête ;)',
-      '{member} est arrivé ! La fête peut commencer ! :partying_face:',
-      "Salut {member} ! Le voyage s'est bien passé ?",
-      "Félicitations {member} ! Tu as réussi à venir jusqu'ici sans te casser de jambes ;)",
-      'Faites place, {member} est parmi nous !',
-      "Ne soyez pas timides ! Dites bonjour à {member}, qui vient d'arriver :)",
-      '{member} vient de se glisser dans le serveur...',
-      'Content de te voir, {member} :)',
-      "{member} vient juste d'atterrir...",
-      'Acclamez {member} ! Je ne sais pas pourquoi, mais acclamez-le !',
-      "Suis-je censé dire bonjour à {member} ? Après tout je ne suis qu'un bot...",
-    ],
-  },
-  prompt: {
-    footer: '\n*Tape "retour" pour annuler cette commande.*',
-    timeout: 'Temps écoulé !',
-    ended: "Tu as fait trop d'erreurs...",
-    canceled: 'Commande annulée !',
-    cancelWord: 'retour',
-    stopWord: 'stop',
+  memberTooPowerful:
+    "Je ne peux pas effectuer cette action pour ce membre ! Il se peut qu'il ait des permissions supérieures ou égales aux tiennes.",
+  dmAreClosed:
+    "{member}, je ne peux pas t'envoyer les informations car tes messages privés sont restreints ! Pense bien à les activer :)",
+  unknownName: 'Pseudo inconnu',
+  everyone: 'Tout le monde',
+  unknown: (feminine = false): string => `Inconnu${feminine ? 'e' : ''}`,
+  noReason: 'Aucune raison spécifiée.',
+  impossibleBecauseBanned: "Impossible d'effectuer cette action car le membre est banni.",
+} as const;
 
-    addon: "Le nom d'addon donné est invalide.",
-    channel: 'Le salon donné est invalide.',
-    code: 'Le code donné est invalide.',
-    differentHelpChannel: "Le salon donné est invalide. Le salon d'origine ou de destination n'est pas un salon d'aide, ou c'est le même salon.",
-    duration: 'La durée donnée est invalide. Tu peux par exemple entrer `1s` pour 1 seconde, `1min` pour 1 minute et `1j` pour 1 jour. Tu peux également combiner ces durées ensemble : `5j15min300s` ou `1h30` sont par exemple des durées valides.',
-    forumModRestriction: 'Vous ne pouvez pas appliquer une sanction dont la durée est supérieure à 2 jours.',
-    equation: "L'équation donnée est invalide.",
-    keywords: 'Les mots clé donnés sont invalides.',
-    member: "Le membre donné est invalide, il se peut qu'il ne soit pas sur le Discord ou que tu aies fait une faute de frappe. Tu peux le mentionner, entrer son identifiant discord, ou simplement son pseudo, avec ou sans le discriminant (#XXXX).",
-    message: 'Le message donné est invalide.',
-    messageName: 'Le nom de message donné est invalide.',
-    minecraftVersion: 'La version de Minecraft donnée est invalide.',
-    number: 'Le nombre donné est invalide.',
-    pollAnswers: 'Le sondage et/ou les réponses données sont invalides.',
-    pollDuration: 'La durée donnée est invalide. Tu peux par exemple entrer `1s` pour 1 seconde, `1min` pour 1 minute et `1j` pour 1 jour. Tu peux également combiner ces durées ensemble : `5j15min300s` ou `1h30` sont par exemple des durées valides.\n:warning: La durée ne peut pas excéder 7 jours !',
-    question: 'La question donnée est invalide.',
-    reason: 'La raison donnée est invalide.',
-    role: 'Le rôle donné est invalide.',
-    ruleName: 'Le nom de règle donné est invalide.',
-    serverAdress: "L'adresse de serveur donnée est invalide.",
-    skriptError: "L'erreur donnée est invalide.",
-    user: "L'utilisateur donné est invalide. Tu peux le mentionner, entrer son identifiant discord, ou simplement son pseudo, avec ou sans le discriminant (#XXXX).",
-    warnId: "L'identifiant de warn donné est invalide.",
+export const errors = {
+  precondition: {
+    [Identifiers.PreconditionNotLoading]: 'Attends un peu, le temps que je finisse de me réveiller...',
+    [Identifiers.PreconditionRunIn]: ':x: Aïe, cette commande ne peut être utilisée ici :confused:',
+    unknownError: "Une pré-condition de commande inconnue t'empêche d'effectuer cette action.",
   },
-  moderation: {
-    permanent: 'Définitif',
-    never: 'jamais',
-    alreadyModerated: "Cet utilisateur est déjà pris en charge par un autre modérateur ! Ta commande n'a pas été exécutée pour éviter les conflits ou les doublons. Sinon, réessaye dans quelques secondes.",
-    memberHasClosedDm: "Je ne peux pas envoyer de message privé à ce membre, il n'a donc pas été prévenu de sa sanction. Je vous invite à lui en informer !",
-    newCase: 'Nouveau cas ({action.data.sanctionId})',
-    banExplanation: stripIndent`
-      Bonjour {nameString}. Tu as été banni(e) par les modérateurs. Tu peux essayer de t'expliquer avec eux.
-      Si tu quittes ce discord, tu seras banni(e) automatiquement, à vie. Cette conversation est sauvegardée.
+} as const;
 
-      **Raison :** {reason}.
-      **Durée :** {duration}.
-      **Expire :** {expiration}.`,
-    durationChange: 'Durée passée de {oldDuration} à {newDuration}',
-    reasons: {
-      leaveBan: "Déconnexion du Discord lors d'un bannissement (automatique)",
-      autoBanInactivity: 'Inactivité après un bannissement (automatique)',
-      autoRevoke: 'Sanction expirée (automatique)',
-      revokeWarnsLimitExceeded: 'Avertissement révoqué car la limite a été atteinte : le membre a été sanctionné (automatique)',
-      autoBanWarnLimitExceeded: "Limite d'avertissement atteinte (automatique)",
-    },
-    log: {
-      userTitle: ':bust_in_silhouette: Utilisateur',
-      moderatorTitle: ':cop: Modérateur',
-      actionTitle: ':tools: Action',
-      reasonTitle: ':label: Raison',
-      durationTitle: ':stopwatch: Durée',
-      durationDescription: '\nExpire {expiration}',
-      privateChannelTitle: ':speech_left: Salon privé',
-      banlogTitle: ':scroll: Historique des messages',
-      banlogAvailableDescription: 'Disponible ci-dessous',
-      banlogUnavailableDescription: 'Indisponible',
-    },
-    sanctionNames: {
-      banUpdate: 'Modification du bannissement',
-      ban: 'Bannissement',
-      hardban: 'Bannissement définitif',
-      muteUpdate: "Modification du mute des salons d'aide",
-      mute: "Mute des salons d'aide",
-      kick: 'Expulsion',
-      warn: 'Avertissement',
-      unban: 'Débannissement',
-      unmute: 'Démute',
-      removeWarn: "Suppression d'avertissement",
-    },
-    updateNames: {
-      revoked: 'Révocation',
-      duration: 'Durée',
-    },
+export const miscellaneous = {
+  noDescription: 'Aucune description disponible.',
+  noSpam:
+    "Merci d'éviter les messages inutiles dans le salon des snippets. Ton message ne contient aucun bloc de code... Comment veux-tu partager ton script sans bloc de code ? Si tu ne sais pas comment faire, regarde ici : <https://support.discord.com/hc/fr/articles/210298617>.",
+  wrongUserInteractionReply: 'Tu ne peux pas cliquer sur ces boutons, ils sont réservés à {user}.',
+  ghostPingSingular: ':warning: {mentions}, tu as été ghost-ping par {user.username}. :innocent:',
+  ghostPingPlural: ':warning: {mentions}, vous avez été ghost-ping par {user.username}. :innocent:',
+  greetings: [
+    '{member} arrive, faites comme si vous étiez occupés ! :books:',
+    "Aujourd'hui, nous accueillons {member} !",
+    'On dit bonjour à {member}. *Tous en choeur* Boooonnnjouuuur {member}...',
+    'Holà {member} ! Bienvenue !',
+    "On t'attendait, {member} ! Prend place.",
+    'Bienvenue sur Skript-MC, {member} !',
+    '{member} rejoint la fête ;)',
+    '{member} est arrivé ! La fête peut commencer ! :partying_face:',
+    "Salut {member} ! Le voyage s'est bien passé ?",
+    "Félicitations {member} ! Tu as réussi à venir jusqu'ici sans te casser de jambes ;)",
+    'Faites place, {member} est parmi nous !',
+    "Ne soyez pas timides ! Dites bonjour à {member}, qui vient d'arriver :)",
+    '{member} vient de se glisser dans le serveur...',
+    'Content de te voir, {member} :)',
+    "{member} vient juste d'atterrir...",
+    'Acclamez {member} ! Je ne sais pas pourquoi, mais acclamez-le !',
+    "Suis-je censé dire bonjour à {member} ? Après tout je ne suis qu'un bot...",
+    "Bienvenue {member} ! Que l'aventure commence !",
+    'Un nouvel aventurier entre en scène, bienvenue {member} !',
+    "Salut {member}, prêt(e) à t'amuser ?",
+    "Préparez les confettis, {member} vient d'arriver ! :tada:",
+    "Ohé {member}, on t'attendait pour commencer la fête !",
+    'Regardez qui vient de débarquer, bienvenue {member} !',
+    'Bienvenue à bord, {member}.',
+    'Faites du bruit pour {member}, notre nouveau membre !',
+    "C'est un oiseau ? C'est un avion ? Non, c'est {member} qui nous rejoint !",
+    'Attention tout le monde, {member} est là !',
+    '{member} vient de nous rejoindre... Soyez gentils, on ne veut pas le faire fuir dès le premier jour.',
+    'On dirait que {member} a suivi les cookies jusque ici.',
+    'Regardez qui a décidé de nous honorer de sa présence... {member} est là.',
+    'Salut {member}. Promis, on ne mord pas... enfin, pas tous.',
+    'Oh non, pas encore un {member}... Je plaisante, bienvenue !',
+    'Attention tout le monde, {member} a atterri. Cachez les cookies.',
+    "Eh bien, si ce n'est pas {member}... Ça commence bien.",
+    'Oh, regarde qui a décidé de nous rejoindre ! Bienvenue {member}, accroche-toi bien.',
+    'Bienvenue {member} ! On espère que tu es prêt(e) pour notre bazar organisé.',
+    "Ah, {member}... la personne qu'on n'attendait plus. Bienvenue quand même.",
+    'Salut {member}, nous avons des cookies virtuels et des blagues nulles, fais comme chez toi.',
+    "Bien joué {member}, tu as trouvé l'endroit le plus cool d'internet... ou pas.",
+    'Bienvenue {member}, ton initiation commence maintenant. Bonne chance !',
+  ],
+} as const;
+
+export const prompt = {
+  channel: 'Le salon donné est invalide.',
+  duration:
+    'La durée donnée est invalide. Tu peux par exemple entrer `1s` pour 1 seconde, `1min` pour 1 minute et `1j` pour 1 jour. Tu peux également combiner ces durées ensemble : `5j15min300s` ou `1h30` sont par exemple des durées valides.',
+  member:
+    "Le membre donné est invalide, il se peut qu'il ne soit pas sur le Discord ou que tu aies fait une faute de frappe. Tu peux le mentionner, entrer son identifiant discord, ou simplement son pseudo.",
+  number: 'Le nombre donné est invalide.',
+  pollAnswers: 'Le sondage et/ou les réponses données sont invalides.',
+  timeout: 'Tu as mis trop de temps à répondre, la commande a été annulée.',
+} as const;
+
+export const moderation = {
+  permanent: 'Définitif',
+  never: 'jamais',
+  alreadyModerated:
+    "Cet utilisateur est déjà pris en charge par un autre modérateur ! Ta commande n'a pas été exécutée pour éviter les conflits ou les doublons. Sinon, réessaye dans quelques secondes.",
+  memberHasClosedDm:
+    "Je ne peux pas envoyer de message privé à ce membre, il n'a donc pas été prévenu de sa sanction. Je vous invite à lui en informer !",
+  newCase: 'Nouveau cas ({action.data.sanctionId})',
+  banExplanation: stripIndent`
+    Bonjour {nameString}. Tu as été banni(e) par les modérateurs. Tu peux essayer de t'expliquer avec eux.
+    Si tu quittes ce discord, tu seras banni(e) automatiquement, à vie. Cette conversation est sauvegardée.
+
+    **Raison :** {reason}.
+    **Durée :** {duration}.
+    **Expire :** {expiration}.`,
+  durationChange: 'Durée passée de {oldDuration} à {newDuration}',
+  reasons: {
+    leaveBan: "Déconnexion du Discord lors d'un bannissement (automatique)",
+    autoBanInactivity: 'Inactivité après un bannissement (automatique)',
+    autoRevoke: 'Sanction expirée (automatique)',
+    revokeWarnsLimitExceeded:
+      'Avertissement révoqué car la limite a été atteinte : le membre a été sanctionné (automatique)',
+    autoBanWarnLimitExceeded: "Limite d'avertissement atteinte (automatique)",
   },
-  poll: {
-    alreadyVoted: 'Tu as déjà voté pour ce choix !',
-    dmSent: "{member}, je t'ai envoyé plus d'informations en privé !",
-    informationsYesNo: stripIndent`
-      **Informations sur les sondages :**
-      Réagissez par :white_check_mark: pour voter **Oui** à la question posée, ou réagissez par :x: pour voter **Non**.
-      Au bout du temps défini, le décompte des votes est fait.
-      Si tu enlèves ta réaction, elle sera tout de même comptée. Si tu mets plusieurs réactions, c'est la dernière mise qui sera comptée. Le vote commence lorsque l'embed devient bleu.
-      Le créateur du vote peut l'arrêter en cliquant sur le :octagonal_sign:.
-    `,
-    informationsCustom: stripIndent`
-      **Informations sur les sondages :**
-      Tu peux réagir avec :one:, :two:, :three: etc. pour voter pour la réponse qui te convient.
-      Au bout du temps défini, le décompte des votes est fait.
-      Si tu enlèves ta réaction, elle sera tout de même comptée. Si tu mets plusieurs réactions, c'est la dernière mise qui sera comptée. Le vote commence lorsque l'embed devient bleu.
-      Le créateur du vote peut l'arrêter en cliquant sur le :octagonal_sign:.
-    `,
-    resultYesno: stripIndent`
-      :white_check_mark: : {yes} oui ({percentageYes}%)
-      :x: : {no} non ({percentageNo}%)
-    `,
-    resultCustomLine: '{reaction} : {amount} {answer} ({percentage}%)\n',
-    totalVoters: '\n:bust_in_silhouette: : {totalVoters} votant(s).',
-    pollEnded: 'Ce vote est terminé !',
-    stopped: '*(arrêté)*',
-    results: 'Résultats',
+  log: {
+    userTitle: ':bust_in_silhouette: Utilisateur',
+    moderatorTitle: ':cop: Modérateur',
+    actionTitle: ':tools: Action',
+    reasonTitle: ':label: Raison',
+    durationTitle: ':stopwatch: Durée',
+    durationDescription: '\nExpire {expiration}',
+    banlogTitle: ':scroll: Historique des messages',
+    banlogAvailableDescription: 'Disponible ci-dessous',
+    banlogUnavailableDescription: 'Indisponible',
   },
-  suggestions: {
-    brand: 'Suggestions Skript-MC',
-    loginButton: 'Connexion à Skript-MC',
-    registeredVote: {
-      title: 'Vote enregistré',
-      content: 'Votre vote a bien été comptabilisé pour cette suggestion : celle-ci sera prochainement traitée et débattue avec la communauté en tenant compte votre vote.',
-    },
-    unlinked: {
-      title: '🔗 Liaison requise',
-      content: 'Il semblerait que votre compte Discord ne corresponde à aucun compte Skript-MC. Pour pouvoir bénéficier des intégrations sur notre serveur Discord, il est nécessaire de lier votre compte Discord à votre compte Skript-MC.\n\nNos lutins vous ont préparé un lien magique : il ne vous suffit plus qu\'à vous connecter à votre compte Skript-MC, et vous bénéficierez des intégrations sur notre serveur Discord.',
-    },
-    alreadyVoted: {
-      title: 'Vote déjà comptabilisé',
-      content: "Votre vote a déjà été pris en compte pour cette proposition. Il vous est cependant possible de modifier votre vote en cliquant sur l'autre proposition.",
-    },
-    selfVote: {
-      title: 'Vote non autorisé',
-      content: "Vous vous en doutiez, il est impossible de voter pour ou contre une suggestion dont vous êtes l'auteur. Ceci étant dit, bien essayé...",
-    },
-    error: {
-      title: '🤖 Une erreur est survenue',
-      content: 'On dirait bien que quelque chose ne fonctionne pas comme il devrait. Réessayez dans quelques instants ou consultez les suggestions directement sur [les suggestions de Skript-MC](https://skript-mc.fr/suggestions).',
-    },
-    published: {
-      title: 'Suggestion publiée',
-      content: "Merci pour votre suggestion ! Elle a été publiée sur toutes les plateformes de Skript-MC et la communauté va voter votre suggestion. Elle sera prochainement traitée avec la communauté et l'équipe, et peut-être appliquée (qui sait 👀).",
-    },
+  sanctionNames: {
+    banUpdate: 'Modification du bannissement',
+    tempBan: 'Bannissement temporaire',
+    hardban: 'Bannissement définitif',
+    muteUpdate: "Modification du mute des salons d'aide",
+    mute: 'Mute',
+    kick: 'Expulsion',
+    warn: 'Avertissement',
+    unban: 'Débannissement',
+    unmute: 'Démute',
+    removeWarn: "Suppression d'avertissement",
   },
-};
+  updateNames: {
+    revoked: 'Révocation',
+    duration: 'Durée',
+  },
+} as const;
+
+export const poll = {
+  alreadyVoted: 'Tu as déjà voté pour ce choix !',
+  dmSent: "{member}, je t'ai envoyé plus d'informations en privé !",
+  informationsYesNo: stripIndent`
+    **Informations sur les sondages :**
+    Réagissez par :white_check_mark: pour voter **Oui** à la question posée, ou réagissez par :x: pour voter **Non**.
+    Au bout du temps défini, le décompte des votes est fait.
+    Si tu enlèves ta réaction, elle sera tout de même comptée. Si tu mets plusieurs réactions, c'est la dernière mise qui sera comptée. Le vote commence lorsque l'embed devient bleu.
+    Le créateur du vote peut l'arrêter en cliquant sur le :octagonal_sign:.
+  `,
+  informationsCustom: stripIndent`
+    **Informations sur les sondages :**
+    Tu peux réagir avec :one:, :two:, :three: etc. pour voter pour la réponse qui te convient.
+    Au bout du temps défini, le décompte des votes est fait.
+    Si tu enlèves ta réaction, elle sera tout de même comptée. Si tu mets plusieurs réactions, c'est la dernière mise qui sera comptée. Le vote commence lorsque l'embed devient bleu.
+    Le créateur du vote peut l'arrêter en cliquant sur le :octagonal_sign:.
+  `,
+  resultYesno: stripIndent`
+    :white_check_mark: : {yes} oui ({percentageYes}%)
+    :x: : {no} non ({percentageNo}%)
+  `,
+  resultCustomLine: '{reaction} : {amount} {answer} ({percentage}%)\n',
+  totalVoters: '\n:bust_in_silhouette: : {totalVoters} votant(s).',
+  pollEnded: 'Ce vote est terminé !',
+  stopped: '*(arrêté)*',
+  results: 'Résultats',
+} as const;
+
+export const suggestions = {
+  brand: 'Suggestions Skript-MC',
+  loginButton: 'Connexion à Skript-MC',
+  registeredVote: {
+    title: 'Vote enregistré',
+    content:
+      'Votre vote a bien été comptabilisé pour cette suggestion : celle-ci sera prochainement traitée et débattue avec la communauté en tenant compte votre vote.',
+  },
+  unlinked: {
+    title: '🔗 Liaison requise',
+    content:
+      'Il semblerait que votre compte Discord ne corresponde à aucun compte Skript-MC. Pour pouvoir bénéficier des intégrations sur notre serveur Discord, il est nécessaire de lier votre compte Discord à votre compte Skript-MC. Rendez-vous sur votre [espace utilisateur Skript-MC](https://skript-mc.fr/account/discord/) pour réaliser la lisaison.',
+  },
+  alreadyVoted: {
+    title: 'Vote déjà comptabilisé',
+    content:
+      "Votre vote a déjà été pris en compte pour cette proposition. Il vous est cependant possible de modifier votre vote en cliquant sur l'autre proposition.",
+  },
+  selfVote: {
+    title: 'Vote non autorisé',
+    content:
+      "Vous vous en doutiez, il est impossible de voter pour ou contre une suggestion dont vous êtes l'auteur. Ceci étant dit, bien essayé...",
+  },
+  error: {
+    title: '🤖 Une erreur est survenue',
+    content:
+      'On dirait bien que quelque chose ne fonctionne pas comme il devrait. Réessayez dans quelques instants ou consultez les suggestions directement sur [les suggestions de Skript-MC](https://skript-mc.fr/suggestions).',
+  },
+  published: {
+    title: 'Suggestion publiée',
+    content:
+      "Merci pour votre suggestion ! Elle a été publiée sur toutes les plateformes de Skript-MC et la communauté va voter votre suggestion. Elle sera prochainement traitée avec la communauté et l'équipe, et peut-être appliquée (qui sait 👀).",
+  },
+} as const;

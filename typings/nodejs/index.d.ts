@@ -1,14 +1,6 @@
 declare namespace NodeJS {
   interface ProcessEnv {
-    /* eslint @typescript-eslint/naming-convention: ["error", {
-      selector: 'memberLike',
-      format: ['UPPER_CASE'],
-      leadingUnderscore: 'forbid',
-      trailingUnderscore: 'forbid',
-    }] */
     NODE_ENV: string;
-
-    BOT_PREFIX: string;
 
     DISCORD_TOKEN: string;
     SENTRY_TOKEN: string;
@@ -20,23 +12,16 @@ declare namespace NodeJS {
     GUILD_ID: string;
 
     STAFF_ROLE: string;
-    FORUM_MODERATOR_ROLE: string;
     EVERYONE_ROLE: string;
-    ACTIVE_MEMBER_ROLE: string;
     BAN_ROLE: string;
-    MUTE_ROLE: string;
 
     SKRIPT_TALK_CHANNEL: string;
     IDEA_CHANNEL: string;
     SUGGESTIONS_CHANNEL: string;
-    BOT_CHANNEL: string;
     SNIPPETS_CHANNEL: string;
-    SKRIPT_CREATIONS_CHANNEL: string;
-    SKRIPT_HELP_CHANNELS: string;
-    SKRIPT_EXTRA_HELP_CHANNELS: string;
-    OTHER_HELP_CHANNELS: string;
-    LOG_CHANNEL: string;
-    PRIVATE_CHANNEL_CATEGORY: string;
+    SANCTION_LOG_CHANNEL: string;
+    DISCORD_LOG_CHANNEL: string;
+    BAN_CHANNEL: string;
     MAIN_CHANNEL: string;
     FORUM_FEED_CHANNEL: string;
 

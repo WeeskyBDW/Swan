@@ -1,16 +1,18 @@
+import { ApplyOptions } from '@sapphire/decorators';
 import type { ChatInputCommand } from '@sapphire/framework';
 import type { ApplicationCommandOptionData } from 'discord.js';
-import { ApplicationCommandOptionType } from 'discord.js';
-import ApplySwanOptions from '@/app/decorators/swanOptions';
-import Message from '@/app/models/message';
-import { SwanCommand } from '@/app/structures/commands/SwanCommand';
-import { MessageName } from '@/app/types';
-import { searchMessageSimilarity } from '@/app/utils';
-import { errorDetails as config } from '@/conf/commands/basic';
+import { ApplicationCommandOptionType, ApplicationCommandType } from 'discord.js';
+import { errorDetails as config } from '#config/commands/basic';
+import { Message } from '#models/message';
+import { SwanCommand } from '#structures/commands/SwanCommand';
+import { MessageName } from '#types/index';
+import { searchMessageSimilarity } from '#utils/index';
 
-@ApplySwanOptions(config)
-export default class ErrorDetailsCommand extends SwanCommand {
-  public static commandOptions: ApplicationCommandOptionData[] = [
+@ApplyOptions<SwanCommand.Options>(config.settings)
+export class ErrorDetailsCommand extends SwanCommand {
+  override canRunInDM = true;
+  commandType = ApplicationCommandType.ChatInput;
+  commandOptions: ApplicationCommandOptionData[] = [
     {
       type: ApplicationCommandOptionType.String,
       name: 'erreur',

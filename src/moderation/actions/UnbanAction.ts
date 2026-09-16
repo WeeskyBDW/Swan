@@ -1,22 +1,19 @@
-import { GuildMember, PermissionsBitField, User } from 'discord.js';
-import ConvictedUser from '@/app/models/convictedUser';
-import Sanction from '@/app/models/sanction';
-import ModerationError from '@/app/moderation/ModerationError';
-import ModerationHelper from '@/app/moderation/ModerationHelper';
-import ModerationAction from '@/app/moderation/actions/ModerationAction';
-import type { SanctionDocument } from '@/app/types';
-import { SanctionsUpdates, SanctionTypes } from '@/app/types';
-import { noop } from '@/app/utils';
+import { container } from '@sapphire/pieces';
+import { Sanction } from '#models/sanction';
+import { ModerationError } from '#moderation/ModerationError';
+import * as ModerationHelper from '#moderation/ModerationHelper';
+import { ModerationAction } from '#moderation/actions/ModerationAction';
+import type { SanctionDocument } from '#types/index';
+import { SanctionTypes, SanctionsUpdates } from '#types/index';
+import { nullop } from '#utils/index';
 
-export default class UnbanAction extends ModerationAction {
+export class UnbanAction extends ModerationAction {
   protected before(): void {
-    this.client.currentlyUnbanning.add(this.data.victim.id);
+    this.client.currentlyUnbanning.add(this.data.victimId);
   }
 
   protected after(): void {
-    this.client.currentlyUnbanning.delete(this.data.victim.id);
-    this.client.cache.convictedUsers
-      .splice(this.client.cache.convictedUsers.findIndex(elt => elt.memberId === this.data.victim.id), 1);
+    this.client.currentlyUnbanning.delete(this.data.victimId);
   }
 
   protected async exec(): Promise<void> {
@@ -25,14 +22,10 @@ export default class UnbanAction extends ModerationAction {
 
   private async _unban(): Promise<void> {
     let ban: SanctionDocument | null = null;
-    // 1. Update the Database
+    // 1. Update the database
     try {
-      const user = await ConvictedUser.findOneAndUpdate({ memberId: this.data.victim.id }, { currentBanId: null });
-      if (!user)
-        throw new TypeError('The user to unban was not found in the database.');
-
       ban = await Sanction.findOneAndUpdate(
-        { sanctionId: user.currentBanId },
+        { sanctionId: this.data.sanctionId },
         {
           $set: { revoked: true },
           $push: {
@@ -49,44 +42,44 @@ export default class UnbanAction extends ModerationAction {
       this.errorState.addError(
         new ModerationError()
           .from(unknownError as Error)
-          .setMessage('An error occurred while revoking a ban in the Database')
+          .setMessage('An error occurred while revoking a ban in the database')
           .addDetail('Ban: ID', this.data.sanctionId)
-          .addDetail('Victim: ID', this.data.victim.id)
+          .addDetail('Victim ID', this.data.victimId)
           .addDetail('Unban Reason', this.data.reason),
       );
     }
 
     // 2. Unban (hard-unban or remove roles)
     try {
-      if (ban?.type === SanctionTypes.Hardban || !this.data.victim.member) {
-        const isHardbanned = await this.data.guild.bans.fetch(this.data.victim.id).catch(noop);
-        if (isHardbanned)
-          await this.data.guild.members.unban(this.data.victim.id, this.data.reason);
+      const member = await container.client.guild.members.fetch(this.data.victimId).catch(nullop);
+      if (ban?.type === SanctionTypes.Hardban || !member) {
+        const isHardbanned = await container.client.guild.bans.fetch(this.data.victimId).catch(nullop);
+        if (isHardbanned) await container.client.guild.members.unban(this.data.victimId, this.data.reason);
       } else {
-        await ModerationHelper.removeAllRoles(this.data.victim.member);
-
-        const channelId = ban?.informations?.banChannelId;
-        if (!channelId)
-          return;
-        const channel = this.data.guild.channels.resolve(channelId);
-        if (!channel?.isTextBased())
-          return;
-
-        const messages = await ModerationHelper.getAllChannelMessages(channel);
-        const fileInfo = await ModerationHelper.getMessageFile(this.data, messages);
-        this.data.setFile(fileInfo);
-
-        await channel.delete();
+        await member.roles.set([]);
       }
     } catch (unknownError: unknown) {
       this.errorState.addError(
         new ModerationError()
           .from(unknownError as Error)
-          .setMessage('An error occurred while fetching ban/unbanning/fetching messages/removing channel')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id)
-          .addDetail('Manage Channel Permission', this.data.guild.members.me?.permissions.has(PermissionsBitField.Flags.ManageChannels)),
+          .setMessage('An error occurred while fetching ban/unbanning')
+          .addDetail('Victim ID', this.data.victimId),
+      );
+    }
+
+    // 3. Archive the thread
+    try {
+      const thread = await ModerationHelper.getThread(this.data, false);
+      if (thread) {
+        await thread.setLocked(true);
+        await thread.setArchived(true);
+      }
+    } catch (unknownError: unknown) {
+      this.errorState.addError(
+        new ModerationError()
+          .from(unknownError as Error)
+          .setMessage('An error occurred while archiving the thread.')
+          .addDetail('Sanction: ID', this.data.sanctionId),
       );
     }
   }

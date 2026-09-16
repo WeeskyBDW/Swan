@@ -1,11 +1,10 @@
 import type { Result } from '@sapphire/framework';
 import { err, ok } from '@sapphire/framework';
-import { getDuration } from '@/app/utils';
-import settings from '@/conf/settings';
+import { miscellaneous } from '#config/settings';
+import { getDuration } from '#utils/index';
 
-export default function resolveDuration(parameter: string, allowPermanent = false): Result<number, 'durationError'> {
-  if (allowPermanent && settings.miscellaneous.permanentKeywords.includes(parameter))
-    return ok(-1);
+export function resolveDuration(parameter: string, allowPermanent = false): Result<number, 'durationError'> {
+  if (allowPermanent && miscellaneous.permanentKeywords.includes(parameter)) return ok(-1);
 
   try {
     return ok(getDuration(parameter) * 1000);

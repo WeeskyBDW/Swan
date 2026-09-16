@@ -1,17 +1,6 @@
-import resolveBannedMember from './bannedMember';
-import resolveCommand from './command';
-import resolveDuration from './duration';
-import resolveEmoji from './emoji';
-import resolveGuildTextBasedChannel from './guildTextBasedChannel';
-import resolveQuotedText from './quotedText';
-import resolveSanctionnableMember from './sanctionnableMember';
-
-export default {
-  resolveBannedMember,
-  resolveCommand,
-  resolveDuration,
-  resolveEmoji,
-  resolveGuildTextBasedChannel,
-  resolveQuotedText,
-  resolveSanctionnableMember,
-};
+export { resolveCommand } from '#resolvers/command';
+export { resolveDuration } from '#resolvers/duration';
+export { resolveEmoji } from '#resolvers/emoji';
+export { resolveGuildTextBasedChannel } from '#resolvers/guildTextBasedChannel';
+export { resolveQuotedText } from '#resolvers/quotedText';
+export { resolveSanctionnableMember } from '#resolvers/sanctionnableMember';

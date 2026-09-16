@@ -1,22 +1,18 @@
 import { ApplyOptions } from '@sapphire/decorators';
-import type { InteractionHandlerOptions, Option } from '@sapphire/framework';
+import type { InteractionHandlerOptions } from '@sapphire/framework';
 import { InteractionHandler, InteractionHandlerTypes } from '@sapphire/framework';
 import type { ButtonInteraction } from 'discord.js';
-import {
-  ActionRowBuilder,
-  ButtonBuilder,
-  ButtonStyle,
-  EmbedBuilder,
-} from 'discord.js';
-import SuggestionManager from '@/app/structures/SuggestionManager';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import { ActionRowBuilder, ButtonBuilder, ButtonStyle, EmbedBuilder } from 'discord.js';
+import * as messages from '#config/messages';
+import { bot, colors } from '#config/settings';
+import * as SuggestionManager from '#structures/SuggestionManager';
 
-@ApplyOptions<InteractionHandlerOptions>({ interactionHandlerType: InteractionHandlerTypes.Button })
-export default class SuggestionHandler extends InteractionHandler {
-  public parse(interaction: ButtonInteraction): Option<never> {
-    if (!interaction.customId.startsWith('suggestion'))
-      return this.none();
+@ApplyOptions<InteractionHandlerOptions>({
+  interactionHandlerType: InteractionHandlerTypes.Button,
+})
+export class SuggestionHandler extends InteractionHandler {
+  public override parse(interaction: ButtonInteraction) {
+    if (!interaction.customId.startsWith('suggestion')) return this.none();
     return this.some();
   }
 
@@ -27,59 +23,67 @@ export default class SuggestionHandler extends InteractionHandler {
       interaction.user.id,
     );
 
-    let embed;
+    let embed: EmbedBuilder;
     const actions = [];
     switch (response?.status) {
       case 'OK':
         embed = new EmbedBuilder()
-          .setColor(settings.colors.default)
+          .setColor(colors.default)
           .setTitle(messages.suggestions.registeredVote.title)
           .setDescription(messages.suggestions.registeredVote.content)
-          .setFooter({ text: messages.suggestions.brand, iconURL: settings.bot.avatar });
+          .setFooter({ text: messages.suggestions.brand, iconURL: bot.avatar });
         break;
       case 'UNLINKED':
-        actions.push(new ActionRowBuilder<ButtonBuilder>()
-          .addComponents(
+        actions.push(
+          new ActionRowBuilder<ButtonBuilder>().addComponents(
             new ButtonBuilder()
               .setLabel(messages.suggestions.loginButton)
-              .setURL(response.loginUrl)
+              .setURL('https://skript-mc.fr/account/discord/')
               .setStyle(ButtonStyle.Link),
-          ));
+          ),
+        );
         embed = new EmbedBuilder()
-          .setColor(settings.colors.error)
+          .setColor(colors.error)
           .setTitle(messages.suggestions.unlinked.title)
           .setDescription(messages.suggestions.unlinked.content)
-          .setFooter({ text: messages.suggestions.brand, iconURL: settings.bot.avatar });
+          .setFooter({ text: messages.suggestions.brand, iconURL: bot.avatar });
         break;
       case 'ALREADY_VOTED':
         embed = new EmbedBuilder()
-          .setColor(settings.colors.error)
+          .setColor(colors.error)
           .setTitle(messages.suggestions.alreadyVoted.title)
           .setDescription(messages.suggestions.alreadyVoted.content)
-          .setFooter({ text: messages.suggestions.brand, iconURL: settings.bot.avatar });
+          .setFooter({ text: messages.suggestions.brand, iconURL: bot.avatar });
         break;
       case 'NO_SELFVOTE':
         embed = new EmbedBuilder()
-          .setColor(settings.colors.error)
+          .setColor(colors.error)
           .setTitle(messages.suggestions.selfVote.title)
           .setDescription(messages.suggestions.selfVote.content)
-          .setFooter({ text: messages.suggestions.brand, iconURL: settings.bot.avatar });
+          .setFooter({ text: messages.suggestions.brand, iconURL: bot.avatar });
         break;
       default:
         embed = new EmbedBuilder()
-          .setColor(settings.colors.error)
+          .setColor(colors.error)
           .setTitle(messages.suggestions.error.title)
           .setDescription(messages.suggestions.error.content)
-          .setFooter({ text: messages.suggestions.brand, iconURL: settings.bot.avatar });
+          .setFooter({ text: messages.suggestions.brand, iconURL: bot.avatar });
     }
     if (response?.suggestion) {
-      const message = await interaction.channel.messages.fetch(interaction.message.id);
+      const message = await interaction.channel?.messages.fetch(interaction.message.id);
       // Get the new embed and actions for this suggestion
       const suggestionEmbed = await SuggestionManager.getSuggestionEmbed(response.suggestion);
       const suggestionActions = SuggestionManager.getSuggestionActions(response.suggestion);
-      await message.edit({ embeds: [suggestionEmbed], components: [suggestionActions] });
+      await message?.edit({
+        embeds: [suggestionEmbed],
+        components: [suggestionActions],
+      });
     }
 
-    await interaction.reply({ embeds: [embed], components: actions, ephemeral: true });
+    await interaction.reply({
+      embeds: [embed],
+      components: actions,
+      ephemeral: true,
+    });
   }
 }

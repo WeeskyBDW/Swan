@@ -1,41 +1,26 @@
-import { container } from '@sapphire/pieces';
-import { GuildMember, User } from 'discord.js';
-import ConvictedUser from '@/app/models/convictedUser';
-import Sanction from '@/app/models/sanction';
-import ModerationData from '@/app/moderation/ModerationData';
-import ModerationError from '@/app/moderation/ModerationError';
-import BanAction from '@/app/moderation/actions/BanAction';
-import ModerationAction from '@/app/moderation/actions/ModerationAction';
-import { SanctionsUpdates, SanctionTypes } from '@/app/types';
-import { noop } from '@/app/utils';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import * as messages from '#config/messages';
+import { moderation } from '#config/settings';
+import { Sanction } from '#models/sanction';
+import { ModerationData } from '#moderation/ModerationData';
+import { ModerationError } from '#moderation/ModerationError';
+import * as ModerationHelper from '#moderation/ModerationHelper';
+import { BanAction } from '#moderation/actions/BanAction';
+import { ModerationAction } from '#moderation/actions/ModerationAction';
+import { SanctionTypes, SanctionsUpdates } from '#types/index';
 
-export default class WarnAction extends ModerationAction {
+export class WarnAction extends ModerationAction {
   protected before: undefined;
 
   protected async after(): Promise<void> {
     try {
-      // Check if they have exceeded the warning limit (before banishment).
-      const user = await ConvictedUser.findOne({ memberId: this.data.victim.id });
-
-      if (!user) {
-        container.logger.warn('An unexpected situation happened: Could not find a convicted user after a warn.');
-        container.logger.info(`Victim: GuildMember: ${this.data.victim.member instanceof GuildMember}`);
-        container.logger.info(`Victim: User: ${this.data.victim.user instanceof User}`);
-        container.logger.info(`Victim: ID: ${this.data.victim.id}`);
-        return;
-      }
+      const currentWarnCount = await ModerationHelper.getCurrentWarnCount(this.data.victimId);
 
       // If they have exceeded the warning limit
-      if (user.currentWarnCount && user.currentWarnCount >= settings.moderation.warnLimitBeforeBan) {
-        // 1. Reset their warning count
-        await ConvictedUser.findByIdAndUpdate(user._id, { $set: { currentWarnCount: 0 } });
-
-        // 2. Revoke all the current warnings
+      if (currentWarnCount >= moderation.warnLimitBeforeBan) {
+        // 1. Revoke all the current warnings
         await Sanction.updateMany(
           {
-            memberId: this.data.victim.id,
+            userId: this.data.victimId,
             type: SanctionTypes.Warn,
             revoked: false,
           },
@@ -52,27 +37,21 @@ export default class WarnAction extends ModerationAction {
           },
         );
 
-        // 3. Ban the member
+        // 2. Ban the member
         const data = new ModerationData()
-          .setVictim(this.data.victim.member ?? this.data.victim.user, false)
+          .setVictim({ id: this.data.victimId, name: this.data.victimName })
           .setReason(messages.moderation.reasons.autoBanWarnLimitExceeded)
-          .setDuration(settings.moderation.warnLimitBanDuration * 1000, true)
-          .setInformations({ shouldAutobanIfNoMessages: false })
-          .setType(SanctionTypes.Ban);
+          .setDuration(moderation.warnLimitBanDuration * 1000, true)
+          .setType(SanctionTypes.TempBan);
 
         await new BanAction(data).commit();
-
-        // 4. Send the message
-        this.data.channel.send(this.data.config.banSuccess).catch(noop);
       }
     } catch (unknownError: unknown) {
       this.errorState.addError(
         new ModerationError()
           .from(unknownError as Error)
           .setMessage('An error occurred while checking for the warning limit')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id),
+          .addDetail('Victim ID', this.data.victimId),
       );
     }
   }
@@ -82,22 +61,18 @@ export default class WarnAction extends ModerationAction {
   }
 
   private async _warn(): Promise<void> {
-    // Add to the Database
+    // Add to the database
     try {
-      const user = await ConvictedUser.findOneAndUpdate(
-        { memberId: this.data.victim.id },
-        { $inc: { currentWarnCount: 1 } },
-        { upsert: true, new: true },
-      );
-      await Sanction.create({ ...this.data.toSchema(), user: user._id });
+      await Sanction.create({
+        ...this.data.toSchema(),
+        userId: this.data.victimId,
+      });
     } catch (unknownError: unknown) {
       this.errorState.addError(
         new ModerationError()
           .from(unknownError as Error)
           .setMessage('An error occurred while inserting warning to database')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id),
+          .addDetail('Victim ID', this.data.victimId),
       );
     }
   }

@@ -1,5 +1,5 @@
 import moment from 'moment';
-import messages from '@/conf/messages';
+import * as messages from '#config/messages';
 
 /**
  * Get back the humanized duration format from milliseconds, or a string (config/messages.moderation.permanent)
@@ -7,8 +7,6 @@ import messages from '@/conf/messages';
  * @param {number} ms - The number of milliseconds to parse.
  * @returns string
  */
-export default function toHumanDuration(ms: number): string {
-  return ms === -1
-    ? messages.moderation.permanent
-    : moment.duration(ms).humanize();
+export function toHumanDuration(ms: number): string {
+  return ms === -1 ? messages.moderation.permanent : moment.duration(ms).humanize();
 }

@@ -1,14 +1,13 @@
 import { ApplyOptions } from '@sapphire/decorators';
-import { PieceContext } from '@sapphire/pieces';
+import type { PieceContext } from '@sapphire/pieces';
 import type { PresenceData } from 'discord.js';
 import { ActivityType } from 'discord.js';
 import pupa from 'pupa';
-import Task, { TaskOptions } from '@/app/structures/tasks/Task';
-import settings from '@/conf/settings';
-import { presence as config } from '@/conf/tasks';
+import { presence as config } from '#config/tasks';
+import { Task, type TaskOptions } from '#structures/tasks/Task';
 
-@ApplyOptions<TaskOptions>({ cron: '* * * * *' })
-export default class PresenceTask extends Task {
+@ApplyOptions<TaskOptions>({ cron: '* * * * *', immediate: true })
+export class PresenceTask extends Task {
   activities: Generator<PresenceData, never>;
 
   constructor(context: PieceContext, options: TaskOptions) {
@@ -17,25 +16,26 @@ export default class PresenceTask extends Task {
   }
 
   public override run(): void {
-    this.container.client.user.setPresence(this.activities.next().value);
+    this.container.client.user?.setPresence(this.activities.next().value);
   }
 
-  private * _getActivity(): Generator<PresenceData, never> {
+  private *_getActivity(): Generator<PresenceData, never> {
     let i = 0;
     while (true) {
       yield {
-        activities: [{
-          name: pupa(config.messages[i], {
-            memberCount: this.container.client.guild.memberCount,
-            prefix: settings.bot.prefix,
-          }),
-          type: ActivityType.Watching,
-        }],
+        activities: [
+          {
+            type: ActivityType.Custom,
+            name: 'custom',
+            state: pupa(config.messages[i], {
+              memberCount: this.container.client.guild.memberCount,
+            }),
+          },
+        ],
         status: 'online',
       };
       i++;
-      if (i >= config.messages.length)
-        i = 0;
+      if (i >= config.messages.length) i = 0;
     }
   }
 }

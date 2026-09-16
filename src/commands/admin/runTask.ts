@@ -1,15 +1,17 @@
+import { ApplyOptions } from '@sapphire/decorators';
 import type { ChatInputCommand } from '@sapphire/framework';
-import type { ApplicationCommandOptionData, AutocompleteInteraction } from 'discord.js';
-import { ApplicationCommandOptionType } from 'discord.js';
-import ApplySwanOptions from '@/app/decorators/swanOptions';
-import { SwanCommand } from '@/app/structures/commands/SwanCommand';
-import { Events } from '@/app/types/sapphire';
-import { searchClosestTask } from '@/app/utils';
-import { runTask as config } from '@/conf/commands/admin';
+import type { ApplicationCommandOptionData } from 'discord.js';
+import { ApplicationCommandOptionType, ApplicationCommandType } from 'discord.js';
+import { runTask as config } from '#config/commands/admin';
+import { SwanCommand } from '#structures/commands/SwanCommand';
+import { Events } from '#types/sapphire';
+import { searchClosestTask } from '#utils/index';
 
-@ApplySwanOptions(config)
-export default class RunTaskCommand extends SwanCommand {
-  public static commandOptions: ApplicationCommandOptionData[] = [
+@ApplyOptions<SwanCommand.Options>(config.settings)
+export class RunTaskCommand extends SwanCommand {
+  override canRunInDM = true;
+  commandType = ApplicationCommandType.ChatInput;
+  commandOptions: ApplicationCommandOptionData[] = [
     {
       type: ApplicationCommandOptionType.String,
       name: 'tâche',
@@ -19,16 +21,14 @@ export default class RunTaskCommand extends SwanCommand {
     },
   ];
 
-  public override async autocompleteRun(interaction: AutocompleteInteraction): Promise<void> {
+  public override async autocompleteRun(interaction: SwanCommand.AutocompleteInteraction): Promise<void> {
     const tasks = this.container.client.stores.get('tasks');
     const search = searchClosestTask([...tasks.values()], interaction.options.getString('tâche', true));
     await interaction.respond(
-      search
-        .slice(0, 20)
-        .map(entry => ({
-          name: entry.matchedName,
-          value: entry.baseName,
-        })),
+      search.slice(0, 20).map((entry) => ({
+        name: entry.matchedName,
+        value: entry.baseName,
+      })),
     );
   }
 
@@ -50,10 +50,15 @@ export default class RunTaskCommand extends SwanCommand {
     try {
       await task.run();
     } catch (error: unknown) {
-      this.container.client.emit(Events.TaskError, error as Error, { piece: this });
-      await interaction.reply(config.messages.taskError);
+      this.container.client.emit(Events.TaskError, error as Error, {
+        piece: this,
+      });
+      await interaction.followUp(config.messages.taskError);
       return;
     }
-    await interaction.followUp({ content: config.messages.success, ephemeral: true });
+    await interaction.followUp({
+      content: config.messages.success,
+      ephemeral: true,
+    });
   }
 }

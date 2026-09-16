@@ -11,12 +11,11 @@ const units = [
  * @param {number} size - The size to convert.
  * @returns string
  */
-export default function convertFileSize(size: number): string {
-  size = Math.abs(size);
+export function convertFileSize(size: number): string {
+  const absSize = Math.abs(size);
 
   for (let i = 1; i < units.length; i++) {
-    if (size < units[i][0])
-      return `${(size / units[i - 1][0]).toFixed(2)} ${units[i - 1][1]}`;
+    if (absSize < units[i][0]) return `${(absSize / units[i - 1][0]).toFixed(2)} ${units[i - 1][1]}`;
   }
   return 'Plusieurs pétaoctets';
 }

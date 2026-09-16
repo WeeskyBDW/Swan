@@ -1,31 +1,31 @@
 import { Listener } from '@sapphire/framework';
-import type SwanClient from '@/app/SwanClient';
-import { Events } from '@/app/types/sapphire';
-import settings from '@/conf/settings';
+import type { SwanClient } from '#app/SwanClient';
+import { bot } from '#config/settings';
+import { Events } from '#types/sapphire';
 
-export default class ReadyListener extends Listener {
+export class ReadyListener extends Listener {
   public override async run(): Promise<void> {
     const client = this.container.client as SwanClient;
-    client.guild = this.container.client.guilds.resolve(settings.bot.guild)!;
-    if (!client.guild)
-      throw new TypeError('Expected SwanClient.guild to be defined after resolving.');
 
-    this.container.logger.info('Loading pieces from database...');
-    await client.refreshPieces();
+    const guild = this.container.client.guilds.resolve(bot.guild);
+    if (!guild) throw new TypeError('Expected SwanClient.guild to be defined after resolving.');
+    client.guild = guild;
 
     const taskStore = this.container.client.stores.get('tasks');
-    if (!taskStore)
-      throw new TypeError('Expected taskStore to be defined.');
+    if (!taskStore) throw new TypeError('Expected taskStore to be defined.');
 
     this.container.logger.info('Loading startup tasks...');
-    const tasks = taskStore.filter(task => task.enabled && Number.isInteger(task.startupOrder))
-      .sort((a, b) => a.startupOrder - b.startupOrder);
+    const tasks = taskStore
+      .filter((task) => task.enabled && Number.isInteger(task.startupOrder))
+      .sort((a, b) => (a.startupOrder || 0) - (b.startupOrder || 0));
     for (const [taskName, task] of tasks) {
       this.container.logger.info(`Run startup task ${taskName}...`);
       try {
         await task.run();
       } catch (error: unknown) {
-        this.container.client.emit(Events.TaskError, error as Error, { piece: this });
+        this.container.client.emit(Events.TaskError, error as Error, {
+          piece: this,
+        });
       }
     }
 

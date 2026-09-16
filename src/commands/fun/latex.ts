@@ -1,16 +1,17 @@
+import { ApplyOptions } from '@sapphire/decorators';
 import type { ChatInputCommand } from '@sapphire/framework';
 import type { ApplicationCommandOptionData, MessageReaction, User } from 'discord.js';
-import { ApplicationCommandOptionType, Message } from 'discord.js';
-import ApplySwanOptions from '@/app/decorators/swanOptions';
-import { SwanCommand } from '@/app/structures/commands/SwanCommand';
-import { noop } from '@/app/utils';
-import { latex as config } from '@/conf/commands/fun';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import { ApplicationCommandOptionType, ApplicationCommandType } from 'discord.js';
+import { latex as config } from '#config/commands/fun';
+import * as messages from '#config/messages';
+import { apis, emojis } from '#config/settings';
+import { SwanCommand } from '#structures/commands/SwanCommand';
 
-@ApplySwanOptions(config)
-export default class LatexCommand extends SwanCommand {
-  public static commandOptions: ApplicationCommandOptionData[] = [
+@ApplyOptions<SwanCommand.Options>(config.settings)
+export class LatexCommand extends SwanCommand {
+  override canRunInDM = true;
+  commandType = ApplicationCommandType.ChatInput;
+  commandOptions: ApplicationCommandOptionData[] = [
     {
       type: ApplicationCommandOptionType.String,
       name: 'équation',
@@ -28,23 +29,21 @@ export default class LatexCommand extends SwanCommand {
 
   private async _exec(interaction: SwanCommand.ChatInputInteraction, equation: string): Promise<void> {
     const sendMessage = await interaction.reply({
-      content: settings.apis.latex + encodeURIComponent(equation),
+      content: apis.latex + encodeURIComponent(equation),
       fetchReply: true,
     });
-    if (!(sendMessage instanceof Message))
-      return;
-    await sendMessage.react(settings.emojis.remove).catch(noop);
+    await sendMessage.react(emojis.remove);
     const collector = sendMessage
       .createReactionCollector({
-        filter: (reaction: MessageReaction, user: User) => user.id === interaction.member.user.id
-          && !user.bot
-          && (reaction.emoji.id ?? reaction.emoji.name) === settings.emojis.remove,
-      }).on('collect', async () => {
+        filter: (reaction: MessageReaction, user: User) =>
+          user.id === interaction.user.id && !user.bot && (reaction.emoji.id ?? reaction.emoji.name) === emojis.remove,
+      })
+      .on('collect', async () => {
         try {
           collector.stop();
           await sendMessage.delete();
         } catch {
-          await interaction.reply(messages.global.oops).catch(noop);
+          await interaction.reply(messages.global.oops);
         }
       });
   }

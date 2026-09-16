@@ -1,22 +1,20 @@
 import { Listener } from '@sapphire/framework';
 import type { GuildBan } from 'discord.js';
-import ModerationData from '@/app/moderation/ModerationData';
-import ModerationHelper from '@/app/moderation/ModerationHelper';
-import UnbanAction from '@/app/moderation/actions/UnbanAction';
-import { SanctionTypes } from '@/app/types';
-import messages from '@/conf/messages';
+import * as messages from '#config/messages';
+import { ModerationData } from '#moderation/ModerationData';
+import * as ModerationHelper from '#moderation/ModerationHelper';
+import { UnbanAction } from '#moderation/actions/UnbanAction';
+import { SanctionTypes } from '#types/index';
 
-export default class GuildBanRemoveListener extends Listener {
+export class GuildBanRemoveListener extends Listener {
   public override async run(ban: GuildBan): Promise<void> {
-    if (this.container.client.currentlyUnbanning.has(ban.user.id))
-      return;
+    if (this.container.client.currentlyUnbanning.has(ban.user.id)) return;
 
-    const isBanned = await ModerationHelper.isBanned(ban.user.id, true);
-    if (!isBanned)
-      return;
+    const currentHardban = await ModerationHelper.getCurrentHardban(ban.user.id);
+    if (!currentHardban) return;
 
     const data = new ModerationData()
-      .setVictim(ban.user, false)
+      .setVictim({ id: ban.user.id, name: ban.user.displayName })
       .setReason(messages.global.noReason)
       .setType(SanctionTypes.Unban);
 

@@ -1,38 +1,55 @@
 import { Listener } from '@sapphire/framework';
-import type { Message, MessageReaction } from 'discord.js';
-import { DMChannel, User } from 'discord.js';
+import { type BaseGuildTextChannel, EmbedBuilder, type Message } from 'discord.js';
+import { User } from 'discord.js';
 import pupa from 'pupa';
-import MessageLogManager from '@/app/structures/MessageLogManager';
-import type { GuildMessage } from '@/app/types';
-import { noop } from '@/app/utils';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import * as messages from '#config/messages';
+import { channels, colors, emojis, roles } from '#config/settings';
+import { escapeCode, noop } from '#utils/index';
 
-export default class MessageDeleteListener extends Listener {
-  public override async run(globalMessage: Message): Promise<void> {
-    if (globalMessage.channel instanceof DMChannel || !globalMessage.member)
-      return;
+export class MessageDeleteListener extends Listener {
+  public override async run(message: Message): Promise<void> {
+    if (!message.inGuild() || !message.member) return;
 
-    const message = globalMessage as GuildMessage;
-    if (message?.content && !message.system)
-      await MessageLogManager.saveMessageDelete(this.container.client.cache, message);
+    if (message?.content && !message.system) {
+      const logChannel = await this.container.client.channels.fetch(channels.discordLog);
+      if (logChannel) {
+        const embed = new EmbedBuilder()
+          .setDescription(
+            `
+            🗑 Message envoyé par <@${message.author.id}> supprimé dans <#${message.channel.id}>.
+            \n\`\`\`${escapeCode(message.content)}\`\`\`
+            `,
+          )
+          .setColor(colors.default)
+          .setAuthor({
+            name: `${message.author.tag} (${message.author.id})`,
+            iconURL: message.author.displayAvatarURL(),
+          })
+          .setFooter({ text: `ID du message: ${message.id}` });
+        await (logChannel as BaseGuildTextChannel)
+          .send({
+            embeds: [embed],
+          })
+          .catch(noop);
+      }
+    }
 
-    if (message.author.bot
-      || message.system
-      || message.member.roles.highest.position >= message.guild.roles.cache.get(settings.roles.staff)!.position)
+    if (
+      message.author.bot ||
+      message.system ||
+      message.member.roles.highest.position >= (message.guild.roles.cache.get(roles.staff)?.position || 0)
+    )
       return;
 
     // List of all the usernames that were mentionned in the deleted message.
-    const userMentions = [...message.mentions.users.values()]
-      .filter(usr => !usr.bot && usr.id !== message.author.id);
+    const userMentions = [...message.mentions.users.values()].filter((usr) => !usr.bot && usr.id !== message.author.id);
     // List of all the roles name's that were mentionned in the deleted message.
     const roleMentions = [...message.mentions.roles.values()];
     // List of usernames / roles name's that were mentionned.
     const mentions = [...userMentions, ...roleMentions];
 
     // If no-one was mentionned, then ignore.
-    if (mentions.length === 0)
-      return;
+    if (mentions.length === 0) return;
 
     // Choose the message (plural if multiple people (or a role) were ghost-ping)
     const severalPeopleAffected = mentions.length > 1 || roleMentions.length > 0;
@@ -42,28 +59,26 @@ export default class MessageDeleteListener extends Listener {
 
     const botNotificationMessage = await message.channel.send(
       pupa(baseMessage, {
-        mentions: mentions
-          .map(mention => (mention instanceof User ? mention.username : mention.name))
-          .join(', '),
-        user: message.member.user,
+        mentions: mentions.map((mention) => (mention instanceof User ? mention.username : mention.name)).join(', '),
+        user: message.author,
       }),
-    ).catch(noop);
-    if (!botNotificationMessage)
-      return;
+    );
+    if (!botNotificationMessage) return;
 
     // If a group of people were ghost-ping, we don't want one people to just remove the alert.
-    if (severalPeopleAffected)
-      return;
+    if (severalPeopleAffected) return;
 
-    await botNotificationMessage.react(settings.emojis.remove).catch(noop);
+    await botNotificationMessage.react(emojis.remove);
     const collector = botNotificationMessage
       .createReactionCollector({
-        filter: (r: MessageReaction, user: User) => (r.emoji.id ?? r.emoji.name) === settings.emojis.remove
-          && (user.id === message.mentions.users.first()!.id)
-          && !user.bot,
-      }).on('collect', async () => {
+        filter: (reaction, user) =>
+          (reaction.emoji.id ?? reaction.emoji.name) === emojis.remove &&
+          user.id === message.mentions.users.first()?.id &&
+          !user.bot,
+      })
+      .on('collect', async () => {
         collector.stop();
-        await botNotificationMessage.delete().catch(noop);
+        await botNotificationMessage.delete();
       });
   }
 }

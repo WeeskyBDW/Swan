@@ -10,12 +10,12 @@ import { PaginatedMessage } from '@sapphire/discord.js-utilities';
 import type { APIEmbed, EmbedField, JSONEncodable } from 'discord.js';
 import { EmbedBuilder } from 'discord.js';
 import pupa from 'pupa';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import * as messages from '#config/messages';
+import { colors } from '#config/settings';
 
-type EmbedFields = Array<Omit<EmbedField, 'inline'>>;
+type EmbedFields = Array<Omit<EmbedField, 'inline'>> | ReadonlyArray<Omit<EmbedField, 'inline'>>;
 
-export default class PaginatedMessageEmbedFields extends PaginatedMessage {
+export class PaginatedMessageEmbedFields extends PaginatedMessage {
   private _embedTemplate: APIEmbed = {};
   private _totalPages = 0;
   private _items: EmbedFields = [];
@@ -23,7 +23,7 @@ export default class PaginatedMessageEmbedFields extends PaginatedMessage {
 
   constructor(options?: PaginatedMessageOptions) {
     super(options);
-    this.setWrongUserInteractionReply(user => ({
+    this.setWrongUserInteractionReply((user) => ({
       content: pupa(messages.miscellaneous.wrongUserInteractionReply, { user }),
       ephemeral: true,
       allowedMentions: { users: [], roles: [] },
@@ -57,12 +57,11 @@ export default class PaginatedMessageEmbedFields extends PaginatedMessage {
       const clonedTemplate = EmbedBuilder.from({ ...template, fields: [] });
       const fieldsClone = this._embedTemplate.fields ?? [];
 
-      if (!template.color)
-        clonedTemplate.setColor(settings.colors.default);
+      if (!template.color) clonedTemplate.setColor(colors.default);
 
       const data = this._paginateArray(this._items, i, this._itemsPerPage);
       this.addPage({
-        embeds: [clonedTemplate.addFields(data).addFields(fieldsClone)],
+        embeds: [clonedTemplate.addFields([...data]).addFields(fieldsClone)],
       });
     }
   }

@@ -6,11 +6,6 @@ import { GuildMember } from 'discord.js';
  * @param {GuildMember | User | string} user - The GuildMember/User/ID to get the name from.
  * @returns string
  */
-export default function getUsername(user: GuildMember | User | string): string {
-  return typeof user === 'string'
-    ? user
-    : (user instanceof GuildMember
-      ? user.displayName
-      : user.username
-    );
+export function getUsername(user: GuildMember | User | string): string {
+  return typeof user === 'string' ? user : user instanceof GuildMember ? user.displayName : user.username;
 }

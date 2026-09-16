@@ -1,23 +1,15 @@
-import jaroWinklerDistance from 'jaro-winkler';
-import type { SimilarityMatch, SkriptMcDocumentationSyntaxAndAddon } from '@/app/types';
-import capitalize from '@/app/utils/capitalize';
+import { distance } from 'fastest-levenshtein';
+import type { SimilarityMatch, SkriptMcDocumentationSyntaxAndAddon } from '#types/index';
+import { capitalize } from '#utils/capitalize';
 
-function getCategoryColor(category: string): string {
-  switch (category) {
-    case 'evenements':
-      return '🔴';
-    case 'conditions':
-      return '🔵';
-    case 'effets':
-      return '🟢';
-    case 'expressions':
-      return '🟣';
-    case 'types':
-      return '🟡';
-    case 'fonctions':
-      return '⚪';
-  }
-}
+const categoryColorMap = {
+  evenements: '🔴',
+  conditions: '🔵',
+  effets: '🟢',
+  expressions: '🟣',
+  types: '🟡',
+  fonctions: '⚪',
+};
 
 /**
  * Find the closest addon given an array of addons and a query string.
@@ -26,7 +18,7 @@ function getCategoryColor(category: string): string {
  * @param {string} wanted - The query string to search for.
  * @returns SimilarityMatch[]
  */
-export default function searchClosestArticle(
+export function searchClosestArticle(
   entries: SkriptMcDocumentationSyntaxAndAddon[],
   wanted: string,
 ): SimilarityMatch[] {
@@ -34,14 +26,17 @@ export default function searchClosestArticle(
   for (const entry of entries) {
     // Avoid useless double loop after.
     matches.push({
-      matchedName: capitalize(getCategoryColor(entry.category) + ' ' + entry.addon.name + ' — ' + (entry.englishName ?? entry.name)),
+      matchedName: capitalize(
+        `${categoryColorMap[entry.category]} ${entry.addon.name} — ${entry.englishName ?? entry.name}`,
+      ),
       baseName: entry.id.toString(),
-      similarity: jaroWinklerDistance(entry.englishName ?? entry.name, wanted, { caseSensitive: false }),
+      distance: distance((entry.englishName ?? entry.name).toLowerCase(), wanted.toLowerCase()),
     });
   }
-  if (matches.length <= 0)
-    return [];
-  matches.sort((a, b) => b.similarity - a.similarity);
-  matches[0].matchedName = '⭐ ' + matches[0].matchedName;
+
+  if (matches.length <= 0) return [];
+
+  matches.sort((a, b) => a.distance - b.distance);
+  matches[0].matchedName = `⭐ ${matches[0].matchedName}`;
   return matches;
 }

@@ -1,162 +1,72 @@
-import { promises as fs } from 'node:fs';
-import path from 'node:path';
-import { stripIndent } from 'common-tags';
-import type { Channel, GuildMember, GuildTextBasedChannel } from 'discord.js';
-import { ChannelType, PermissionsBitField, TextChannel } from 'discord.js';
-import moment from 'moment';
-import pupa from 'pupa';
-import Sanction from '@/app/models/sanction';
-import type ModerationData from '@/app/moderation/ModerationData';
-import type { BanChannelMessage } from '@/app/types';
-import { SanctionTypes } from '@/app/types';
-import { nullop, prunePseudo } from '@/app/utils';
-import settings from '@/conf/settings';
+import { container } from '@sapphire/pieces';
+import type { TextChannel, ThreadChannel } from 'discord.js';
+import { ChannelType, PermissionFlagsBits } from 'discord.js';
+import { channels } from '#config/settings';
+import { Sanction } from '#models/sanction';
+import type { ModerationData } from '#moderation/ModerationData';
+import type { SanctionDocument } from '#types/index';
+import { SanctionTypes } from '#types/index';
 
-export default {
-  async getOrCreateChannel(data: ModerationData): Promise<TextChannel> {
-    const pseudo = prunePseudo(data.victim.member, data.victim.user, data.victim.id);
-    const channelName = settings.moderation.banChannelPrefix + pseudo;
+export async function getThread(data: ModerationData, orCreate = false): Promise<ThreadChannel> {
+  const channelName = `${data.victimName} (${data.sanctionId})`;
 
-    const filter = (chan: Channel): boolean => chan instanceof TextChannel && chan?.topic?.split(' ')[0] === data.victim.id;
-    if (data.guild.channels.cache.some(chan => filter(chan)))
-      return data.guild.channels.cache.find((chan): chan is TextChannel => filter(chan));
+  const banChannel = (await container.client.guild.channels.fetch(channels.banChannel)) as TextChannel;
 
-    try {
-      return await data.guild.channels.create<ChannelType.GuildText>(
-        {
-          name: channelName,
-          type: ChannelType.GuildText,
-          topic: `${data.victim.id} - ${pupa(settings.moderation.banChannelTopic, { member: data.victim.member })}`,
-          parent: settings.channels.privateChannelsCategory,
-          permissionOverwrites: [{
-            id: settings.roles.everyone,
-            deny: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.CreateInstantInvite],
-          }, {
-            id: settings.roles.staff,
-            allow: [PermissionsBitField.Flags.ViewChannel, PermissionsBitField.Flags.ManageChannels],
-          }, {
-            id: data.victim.id,
-            allow: [PermissionsBitField.Flags.ViewChannel],
-          }],
-        },
-      );
-    } catch (unknownError: unknown) {
-      this.container.logger.error(`Could not create the private channel for the ban of ${data.victim.member?.displayName ?? 'Unknown'}.`);
-      this.container.logger.info(`Member's name: "${data.victim.member?.displayName ?? 'Unknown'}"`);
-      this.container.logger.info(`Stripped name: "${pseudo}"`);
-      this.container.logger.info(`Create channel permissions: ${data.guild.members.me?.permissions.has(PermissionsBitField.Flags.ManageChannels) ?? 'Unknown'}`);
-      this.container.logger.error((unknownError as Error).stack);
-      throw new Error('Private Channel Creation Failed');
-    }
-  },
+  const existingChannel = container.client.guild.channels.cache.find(
+    (thread) => thread.isThread() && thread.parentId === banChannel.id && !thread.archived && !thread.locked,
+  );
+  if (!orCreate || existingChannel) return existingChannel as ThreadChannel;
 
-  async getAllChannelMessages(channel: GuildTextBasedChannel): Promise<BanChannelMessage[]> {
-    const allMessages: BanChannelMessage[] = [];
-    let beforeId: string;
-
-    while (true) {
-      const messages = await channel.messages.fetch({ limit: 100, before: beforeId, cache: false });
-      if (messages.size === 0)
-        break;
-
-      beforeId = messages.last()!.id;
-      const parsedMessages = [...messages.values()]
-        .map<BanChannelMessage>(msg => ({
-          id: msg.id,
-          content: msg.content,
-          authorName: msg.author.username,
-          authorId: msg.author.id,
-          sentAt: msg.createdTimestamp,
-          edited: msg.editedTimestamp,
-          attachments: [...(msg.attachments?.values() ?? [])]
-            .map((atc, i) => ({ name: atc.name ?? `Attachment n${i}`, url: atc.url })) ?? [],
-        }));
-      allMessages.push(...parsedMessages);
-
-      if (messages.size < 90)
-        break;
-    }
-
-    return allMessages.reverse();
-  },
-
-  async removeAllRoles(member: GuildMember): Promise<void> {
-    const removingRoles: Array<Promise<GuildMember | null>> = [];
-
-    // We remove the roles one by one, because even if we fail on one we want to continue and try for the others.
-    for (const memberRole of member.roles.cache.keys())
-      removingRoles.push(member.roles.remove(memberRole).catch(nullop));
-
-    await Promise.all(removingRoles);
-  },
-
-  async getMessageFile(
-    data: ModerationData,
-    messages: BanChannelMessage[],
-  ): Promise<{ path: string; name: string }> {
-    let fileContent = stripIndent`
-      Historique des messages du salon du banni : ${data.victim?.id ?? 'Inconnu'}.
-      ----------------------------------------------------------------------------
-      Messages :\n\n\n
-    `;
-
-    for (const message of messages) {
-      const sentAt = moment(new Date(message.sentAt)).format(settings.miscellaneous.durationFormat);
-
-      let line = `[${message.id}] (${sentAt}) ${message.authorName} : ${message.content}`;
-      if (message.edited)
-        line = `[Modifié] ${line}`;
-      for (const attachment of message.attachments)
-        line += `[Pièce jointe "${attachment.name}" (${attachment.url})]`;
-
-      fileContent += `${line}\n`;
-    }
-
-    let fileName = `logs-${data.victim?.id}`;
-    const filePath = path.join(process.cwd(), 'banlogs/');
-    let i = 1;
-
-    const exists = async (filepath: string): Promise<boolean> => fs.access(filepath)
-      .then(() => true)
-      .catch(() => false);
-
-    if (await exists(`${filePath}${fileName}.txt`)) {
-      while (await exists(`${filePath}${fileName}-${i}.txt`))
-        i++;
-
-      fileName += `-${i}`;
-    }
-
-    if (!(await exists(filePath)))
-      await fs.mkdir(filePath);
-
-    await fs.writeFile(`${filePath}${fileName}.txt`, fileContent);
-
-    return {
-      path: `${filePath}${fileName}.txt`,
-      name: fileName,
-    };
-  },
-
-  async isBanned(memberId: string, includeHardban = false): Promise<boolean> {
-    const banTypes = [SanctionTypes.Ban];
-    if (includeHardban)
-      banTypes.push(SanctionTypes.Hardban);
-
-    const banObject = await Sanction.findOne({
-      memberId,
-      revoked: false,
-      type: { $in: banTypes },
+  try {
+    const thread = await banChannel.threads.create({
+      name: channelName,
+      invitable: false,
+      type: ChannelType.PrivateThread,
+      reason: `Création d'un fil de discussion pour le bannissement de ${channelName}.`,
     });
-    return Boolean(banObject);
-  },
 
-  async isMuted(memberId: string): Promise<boolean> {
-    const muteObject = await Sanction.findOne({
-      memberId,
-      revoked: false,
-      type: SanctionTypes.Mute,
-    });
-    return Boolean(muteObject);
-  },
-};
+    await thread.members.add(data.victimId);
+    return thread;
+  } catch (unknownError: unknown) {
+    container.logger.error(`Could not create the private thread for the ban of ${data.victimId}.`);
+    container.logger.info(`Thread name: "${channelName}"`);
+    container.logger.info(
+      `Create thread permissions: ${
+        container.client.guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels) ?? 'Unknown'
+      }`,
+    );
+    container.logger.error((unknownError as Error).stack);
+    throw new Error('Private Channel Creation Failed');
+  }
+}
+
+export async function getCurrentSanction(
+  memberId: string,
+  sanctionType: SanctionTypes,
+): Promise<SanctionDocument | null> {
+  return await Sanction.findOne({
+    userId: memberId,
+    revoked: false,
+    type: sanctionType,
+  });
+}
+
+export async function getCurrentBan(memberId: string): Promise<SanctionDocument | null> {
+  return await getCurrentSanction(memberId, SanctionTypes.TempBan);
+}
+
+export async function getCurrentHardban(memberId: string): Promise<SanctionDocument | null> {
+  return await getCurrentSanction(memberId, SanctionTypes.Hardban);
+}
+
+export async function getCurrentMute(memberId: string): Promise<SanctionDocument | null> {
+  return await getCurrentSanction(memberId, SanctionTypes.Mute);
+}
+
+export async function getCurrentWarnCount(memberId: string): Promise<number> {
+  return await Sanction.countDocuments({
+    userId: memberId,
+    revoked: false,
+    type: SanctionTypes.Warn,
+  });
+}

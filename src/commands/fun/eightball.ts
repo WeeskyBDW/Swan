@@ -1,15 +1,16 @@
+import { ApplyOptions } from '@sapphire/decorators';
 import type { ChatInputCommand } from '@sapphire/framework';
 import type { ApplicationCommandOptionData } from 'discord.js';
-import { ApplicationCommandOptionType, EmbedBuilder } from 'discord.js';
-import pupa from 'pupa';
-import ApplySwanOptions from '@/app/decorators/swanOptions';
-import { SwanCommand } from '@/app/structures/commands/SwanCommand';
-import { eightBall as config } from '@/conf/commands/fun';
-import settings from '@/conf/settings';
+import { ApplicationCommandOptionType, ApplicationCommandType, EmbedBuilder } from 'discord.js';
+import { eightBall as config } from '#config/commands/fun';
+import { colors } from '#config/settings';
+import { SwanCommand } from '#structures/commands/SwanCommand';
 
-@ApplySwanOptions(config)
-export default class EightBallCommand extends SwanCommand {
-  public static commandOptions: ApplicationCommandOptionData[] = [
+@ApplyOptions<SwanCommand.Options>(config.settings)
+export class EightBallCommand extends SwanCommand {
+  override canRunInDM = true;
+  commandType = ApplicationCommandType.ChatInput;
+  commandOptions: ApplicationCommandOptionData[] = [
     {
       type: ApplicationCommandOptionType.String,
       name: 'question',
@@ -30,11 +31,10 @@ export default class EightBallCommand extends SwanCommand {
     const pool = config.messages[isAffirmative ? 'affirmative' : 'negative'];
     const answer = pool[Math.floor(Math.random() * pool.length)];
     const embed = new EmbedBuilder()
-      .setColor(settings.colors.default)
+      .setColor(colors.default)
       .setTimestamp()
       .setTitle(interaction.options.getString('question', true))
-      .setDescription(answer)
-      .setFooter({ text: pupa(config.messages.footer, { member: interaction.member }) });
+      .setDescription(answer);
     await interaction.reply({ embeds: [embed] });
   }
 }

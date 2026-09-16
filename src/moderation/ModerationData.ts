@@ -1,97 +1,62 @@
-import type { SapphireClient } from '@sapphire/framework';
 import { container } from '@sapphire/pieces';
-import type {
-  Guild,
-  GuildMember,
-  GuildTextBasedChannel,
-  User,
-} from 'discord.js';
-import { CommandInteraction, Message, TextChannel } from 'discord.js';
+import type { ChatInputCommandInteraction, Guild, GuildTextBasedChannel, ModalSubmitInteraction } from 'discord.js';
 import { nanoid } from 'nanoid';
-import type {
-  GuildMessage,
-  ModerationDataResult,
-  PersonInformations,
-  SanctionInformations,
-} from '@/app/types';
-import { SanctionTypes } from '@/app/types';
-import { getPersonFromCache } from '@/app/utils';
-import * as configs from '@/conf/commands/moderation';
-import messages from '@/conf/messages';
+import * as configs from '#config/commands/moderation';
+import * as messages from '#config/messages';
+import type { ModerationDataResult } from '#types/index';
+import { SanctionTypes } from '#types/index';
 
-export default class ModerationData {
-  moderatorId: string;
-  guild: Guild;
-  client: SapphireClient;
-  channel: GuildTextBasedChannel;
-  type?: SanctionTypes;
-  config?: Record<string, string>;
-  victim: PersonInformations;
-  reason: string;
-  duration?: number | null;
-  finish?: number | null;
-  start: number;
-  privateChannel?: TextChannel;
-  sanctionId: string;
-  informations: SanctionInformations;
-
-  // These informations don't have much to do with moderation data, they are just used to pass
-  // data from the specific moderation action to the parent class, ModerationAction.
-  // TODO: Maybe this should be put in a separate class that acts the same as ModerationData.
-  file: { path: string; name: string };
-  shouldPurge: boolean;
-  originalWarnId: string;
+export class ModerationData {
+  public channel: GuildTextBasedChannel | null;
+  public moderatorId: string;
+  public guild: Guild;
+  public reason: string;
+  public start: number;
+  public sanctionId: string;
+  // @ts-expect-error: TS is right but changing this would require a lot of work, which isn't needed because it
+  // works in its current state (the setters are always correctly called). Also the whole moderation system needs a
+  // general lift up and this would probably be trashed anyway.
+  public type: SanctionTypes;
+  // @ts-expect-error: ditto
+  public config: Record<string, string>;
+  // @ts-expect-error: ditto
+  public duration: number;
+  // @ts-expect-error: ditto
+  public finish: number;
+  // @ts-expect-error: ditto
+  public victimId: string;
+  // @ts-expect-error: ditto
+  public victimName: string;
 
   /**
    * Create moderation data from a message or from individual informations.
-   *
-   * @param {Message | TextChannel | AkairoClient} argument
-   * * If the argument is of type Message, then it is used to get all the data (moderator, guild, client, channel...).
-   * * If the argument is a TextChannel, then the channel is used to get all the data.
-   * * If the argument is a AkairoClient, then the channel is set to the log channel and it is used to get all the data.
    */
-  constructor(argument?: CommandInteraction | GuildMessage) {
-    this.client = container.client;
-    if (argument instanceof Message) {
-      this.channel = argument.channel;
-      this.moderatorId = argument.member.id;
-    } else if (argument instanceof CommandInteraction) {
-      if (argument.channel instanceof TextChannel)
-        this.channel = argument.channel;
-      this.moderatorId = argument.member.user.id;
-    } else {
-      this.channel = this.client.cache.channels.log;
-      this.moderatorId = this.client.guild.members.me.id;
-    }
-    this.guild = this.channel.guild;
-    this.type = null;            // The sanction type (one of the SanctionTypes enum).
-    this.config = null;          // The configuration of the action (all the messages).
-    this.victim = {              // The victim of the case. It contains an ID, a User and a GuildMember.
-      id: null,
-      user: null,
-      member: null,
-    };
-    this.reason = messages.global.noReason; // The reason.
-    this.duration = null;        // The duration.
-    this.finish = null;          // The finish timestamp.
-    this.start = Date.now();     // The start timestamp.
-    this.sanctionId = nanoid(8); // The id of the case.
-    this.informations = {};      // The additional information to be given to the sanction model.
-    this.file = null;            // File informations if it is a ban.
-    this.shouldPurge = false;    // Whether we should purge the messages of the member while hard-banning them.
-    this.originalWarnId = null;  // The ID of the original warn to remove in a `.removewarn`.
+  constructor(interaction?: ChatInputCommandInteraction<'cached'> | ModalSubmitInteraction<'cached'>) {
+    this.channel = interaction?.channel ?? null;
+    const moderatorId = interaction?.user.id ?? container.client.guild.members.me?.id;
+    if (!moderatorId) throw new Error('No moderator ID found.');
+    this.moderatorId = moderatorId;
+    this.guild = interaction?.guild ?? container.client.guild;
+    this.reason = messages.global.noReason;
+    this.start = Date.now();
+    this.sanctionId = nanoid(8);
   }
 
-  public setVictim(personResolvable: GuildMember | User, resolveMemberAndUser = true): this {
-    this.victim = getPersonFromCache(personResolvable, resolveMemberAndUser);
+  public setSanctionId(id: string): this {
+    this.sanctionId = id;
+    return this;
+  }
+
+  public setVictim({ id, name }: { id: string; name: string }): this {
+    this.victimId = id;
+    this.victimName = name;
     return this;
   }
 
   public setType(type: SanctionTypes): this {
     this.type = type;
     this.config = configs[this.type].messages;
-    if (this.type === SanctionTypes.Hardban)
-      this.setDuration(-1, false);
+    if (this.type === SanctionTypes.Hardban) this.setDuration(-1, false);
     return this;
   }
 
@@ -101,47 +66,19 @@ export default class ModerationData {
   }
 
   public setReason(reason?: string | null): this {
-    if (reason)
-      this.reason = reason;
+    if (reason) this.reason = reason;
     return this;
   }
 
   public setDuration(duration: number, computeFinishTimestamp: boolean): this {
     this.duration = duration;
-    if (computeFinishTimestamp)
-      this.finish = this.start + duration;
-    return this;
-  }
-
-  public setChannel(channel: TextChannel): this {
-    if (channel instanceof TextChannel)
-      this.channel = channel;
-    return this;
-  }
-
-  public setInformations(infos: Partial<SanctionInformations>): this {
-    this.informations = { ...this.informations, ...infos };
-    return this;
-  }
-
-  public setFile(fileInfo: { path: string; name: string }): this {
-    this.file = fileInfo;
-    return this;
-  }
-
-  public setShouldPurge(bool: boolean): this {
-    this.shouldPurge = bool;
-    return this;
-  }
-
-  public setOriginalWarnId(id: string): this {
-    this.originalWarnId = id;
+    if (computeFinishTimestamp) this.finish = this.start + duration;
     return this;
   }
 
   public toSchema(): ModerationDataResult {
     return {
-      memberId: this.victim.id,
+      memberId: this.victimId,
       type: this.type,
       moderator: this.moderatorId,
       start: this.start,
@@ -149,7 +86,6 @@ export default class ModerationData {
       duration: this.duration,
       reason: this.reason,
       revoked: false,
-      informations: this.informations,
       sanctionId: this.sanctionId,
     };
   }

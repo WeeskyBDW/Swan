@@ -2,34 +2,89 @@ import { EmbedLimits } from '@sapphire/discord-utilities';
 import type { SapphireClient } from '@sapphire/framework';
 import { container } from '@sapphire/pieces';
 import type { Awaitable } from '@sapphire/utilities';
-import { EmbedBuilder, time as timeFormatter, TimestampStyles } from 'discord.js';
-import type { GuildTextBasedChannel, HexColorString } from 'discord.js';
+import type { HexColorString } from 'discord.js';
+import { EmbedBuilder, TimestampStyles, time as timeFormatter, userMention } from 'discord.js';
 import moment from 'moment';
 import pupa from 'pupa';
-import ActionUpdateInformations from '@/app/moderation/ActionUpdateInformations';
-import ErrorState from '@/app/moderation/ErrorState';
-import type ModerationData from '@/app/moderation/ModerationData';
-import ModerationError from '@/app/moderation/ModerationError';
-import { SanctionTypes } from '@/app/types';
-import { noop, trimText } from '@/app/utils';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import * as messages from '#config/messages';
+import { channels, moderation } from '#config/settings';
+import { ActionUpdateInformations } from '#moderation/ActionUpdateInformations';
+import { ErrorState } from '#moderation/ErrorState';
+import type { ModerationData } from '#moderation/ModerationData';
+import { ModerationError } from '#moderation/ModerationError';
+import * as ModerationHelper from '#moderation/ModerationHelper';
+import { SanctionTypes } from '#types/index';
+import { noop, nullop, trimText } from '#utils/index';
 
-export default abstract class ModerationAction {
-  data: ModerationData;
-  client: SapphireClient;
-  logChannel: GuildTextBasedChannel;
+export abstract class ModerationAction {
+  public data: ModerationData;
+  public client: SapphireClient;
 
-  errorState: ErrorState;
-  updateInfos: ActionUpdateInformations;
+  public errorState: ErrorState;
+  public updateInfos: ActionUpdateInformations;
 
   constructor(data: ModerationData) {
     this.data = data;
     this.client = container.client;
-    this.logChannel = this.client.cache.channels.log;
 
-    this.errorState = new ErrorState(this.data.channel || this.logChannel);
+    this.errorState = new ErrorState();
     this.updateInfos = new ActionUpdateInformations(this.data);
+  }
+
+  protected get nameString(): string {
+    return userMention(this.data.victimId);
+  }
+
+  protected get moderatorString(): string {
+    return userMention(this.data.moderatorId);
+  }
+
+  protected get action(): string {
+    switch (this.data.type) {
+      case SanctionTypes.TempBan:
+        if (this.updateInfos.isUpdate()) return messages.moderation.sanctionNames.banUpdate;
+        return messages.moderation.sanctionNames.tempBan;
+      case SanctionTypes.Hardban:
+        return messages.moderation.sanctionNames.hardban;
+      case SanctionTypes.Mute:
+        if (this.updateInfos.isUpdate()) return messages.moderation.sanctionNames.muteUpdate;
+        return messages.moderation.sanctionNames.mute;
+      case SanctionTypes.Kick:
+        return messages.moderation.sanctionNames.kick;
+      case SanctionTypes.Warn:
+        return messages.moderation.sanctionNames.warn;
+      case SanctionTypes.Unban:
+        return messages.moderation.sanctionNames.unban;
+      case SanctionTypes.Unmute:
+        return messages.moderation.sanctionNames.unmute;
+      case SanctionTypes.RemoveWarn:
+        return messages.moderation.sanctionNames.removeWarn;
+      default:
+        throw new Error(`Received unexpected moderation type: ${this.data.type}`);
+    }
+  }
+
+  protected get originalAction(): string {
+    switch (this.data.type) {
+      case SanctionTypes.TempBan:
+        if (this.updateInfos.isUpdate()) return messages.moderation.sanctionNames.tempBan;
+        return this.action;
+      case SanctionTypes.Mute:
+        if (this.updateInfos.isUpdate()) return messages.moderation.sanctionNames.mute;
+        return this.action;
+      case SanctionTypes.Unban:
+        return messages.moderation.sanctionNames.tempBan;
+      case SanctionTypes.Unmute:
+        return messages.moderation.sanctionNames.mute;
+      case SanctionTypes.RemoveWarn:
+        return messages.moderation.sanctionNames.warn;
+      default:
+        return this.action;
+    }
+  }
+
+  protected get color(): HexColorString {
+    return moderation.colors[this.data.type];
   }
 
   public async commit(): Promise<boolean> {
@@ -51,20 +106,18 @@ export default abstract class ModerationAction {
     }
 
     if (this.errorState.hasError()) {
-      this.errorState.log();
+      await this.errorState.log();
       return false;
     }
     return true;
   }
 
   protected formatDuration(duration: number): string {
-    return duration === -1
-      ? messages.moderation.permanent
-      : moment.duration(duration).humanize();
+    return duration === -1 ? messages.moderation.permanent : moment.duration(duration).humanize();
   }
 
   protected getFormattedChange(): string {
-    const oldDuration = this.updateInfos.sanctionDocument.duration;
+    const oldDuration = this.updateInfos.sanctionDocument?.duration;
     const newDuration = this.data.duration;
     return pupa(messages.moderation.durationChange, {
       oldDuration: oldDuration ? this.formatDuration(oldDuration) : messages.global.unknown(true),
@@ -72,81 +125,37 @@ export default abstract class ModerationAction {
     });
   }
 
-  protected get nameString(): string {
-    return this.data.victim?.user ? ('<@' + this.data.victim.user.id + '>') : messages.global.unknownName;
-  }
-
-  protected get moderatorString(): string {
-    return this.data.moderatorId ? ('<@' + this.data.moderatorId + '>') : messages.global.unknownName;
-  }
-
-  protected get action(): string {
-    switch (this.data.type) {
-      case SanctionTypes.Ban:
-        if (this.updateInfos.isUpdate())
-          return messages.moderation.sanctionNames.banUpdate;
-        return messages.moderation.sanctionNames.ban;
-      case SanctionTypes.Hardban:
-        return messages.moderation.sanctionNames.hardban;
-      case SanctionTypes.Mute:
-        if (this.updateInfos.isUpdate())
-          return messages.moderation.sanctionNames.muteUpdate;
-        return messages.moderation.sanctionNames.mute;
-      case SanctionTypes.Kick:
-        return messages.moderation.sanctionNames.kick;
-      case SanctionTypes.Warn:
-        return messages.moderation.sanctionNames.warn;
-      case SanctionTypes.Unban:
-        return messages.moderation.sanctionNames.unban;
-      case SanctionTypes.Unmute:
-        return messages.moderation.sanctionNames.unmute;
-      case SanctionTypes.RemoveWarn:
-        return messages.moderation.sanctionNames.removeWarn;
-      default:
-        throw new Error(`Received unexpected moderation type: ${this.data.type}`);
-    }
-  }
-
-  protected get originalAction(): string {
-    switch (this.data.type) {
-      case SanctionTypes.Ban:
-        if (this.updateInfos.isUpdate())
-          return messages.moderation.sanctionNames.ban;
-        return this.action;
-      case SanctionTypes.Mute:
-        if (this.updateInfos.isUpdate())
-          return messages.moderation.sanctionNames.mute;
-        return this.action;
-      case SanctionTypes.Unban:
-        return messages.moderation.sanctionNames.ban;
-      case SanctionTypes.Unmute:
-        return messages.moderation.sanctionNames.mute;
-      case SanctionTypes.RemoveWarn:
-        return messages.moderation.sanctionNames.warn;
-      default:
-        return this.action;
-    }
-  }
-
-  protected get color(): HexColorString {
-    return settings.moderation.colors[this.data.type];
-  }
-
   protected async notify(): Promise<void> {
     const message = this.updateInfos.isUpdate()
-      ? pupa(this.data.config.notificationUpdate, { action: this, change: this.getFormattedChange() })
-      : pupa(this.data.config.notification, { action: this, duration: this.formatDuration(this.data.duration) });
+      ? pupa(this.data.config.notificationUpdate, {
+          action: this,
+          change: this.getFormattedChange(),
+        })
+      : pupa(this.data.config.notification, {
+          action: this,
+          duration: this.formatDuration(this.data.duration),
+        });
 
     try {
-      await (this.data.victim.member ?? this.data.victim.user)?.send(message);
+      // If the sanction is a temporary ban, we should notify the victim in his private thread.
+      // We should only notify the victim if the sanction is an update.
+      if (this.data.type === SanctionTypes.TempBan) {
+        const thread = await ModerationHelper.getThread(this.data);
+        if (thread.isThread()) await thread.send(message);
+      } else {
+        const victim =
+          (await container.client.guild.members.fetch(this.data.victimId).catch(nullop)) ??
+          (await container.client.users.fetch(this.data.victimId).catch(nullop));
+        await victim?.send(message).catch(noop);
+      }
     } catch {
-      await this.data.channel.send(messages.moderation.memberHasClosedDm).catch(noop);
+      await this.data.channel?.send(messages.moderation.memberHasClosedDm);
     }
   }
 
   protected async log(): Promise<void> {
-    if (!this.logChannel)
-      return;
+    const channel = await container.client.guild.channels.fetch(channels.sanctionLog);
+    if (!channel || !channel.isTextBased()) return;
 
     const embedMsgs = messages.moderation.log;
 
@@ -155,9 +164,21 @@ export default abstract class ModerationAction {
       .setTitle(pupa(messages.moderation.newCase, { action: this }))
       .setTimestamp()
       .addFields(
-        { name: embedMsgs.userTitle, value: `${this.nameString}\n${this.data.victim.id}`, inline: true },
-        { name: embedMsgs.moderatorTitle, value: `${this.moderatorString}\n${this.data.moderatorId}`, inline: true },
-        { name: embedMsgs.actionTitle, value: this.action.toString(), inline: true },
+        {
+          name: embedMsgs.userTitle,
+          value: `${this.nameString}\n${this.data.victimId}`,
+          inline: true,
+        },
+        {
+          name: embedMsgs.moderatorTitle,
+          value: `${this.moderatorString}\n${this.data.moderatorId}`,
+          inline: true,
+        },
+        {
+          name: embedMsgs.actionTitle,
+          value: this.action.toString(),
+          inline: true,
+        },
         {
           name: embedMsgs.reasonTitle,
           value: trimText(this.data.reason.toString(), EmbedLimits.MaximumFieldValueLength),
@@ -172,31 +193,14 @@ export default abstract class ModerationAction {
           expiration: timeFormatter(Math.round(this.data.finish / 1000), TimestampStyles.LongDateTime),
         });
       }
-      embed.addFields({ name: embedMsgs.durationTitle, value: content, inline: true });
-    }
-    if (this.data.privateChannel) {
       embed.addFields({
-        name: embedMsgs.privateChannelTitle,
-        value: this.data.privateChannel.toString(),
+        name: embedMsgs.durationTitle,
+        value: content,
         inline: true,
       });
     }
 
-    if (this.data.file)
-      embed.addFields({ name: embedMsgs.banlogTitle, value: embedMsgs.banlogAvailableDescription, inline: true });
-    else if (this.data.type === SanctionTypes.Unban && this.updateInfos.sanctionDocument?.duration !== -1)
-      embed.addFields({ name: embedMsgs.banlogTitle, value: embedMsgs.banlogUnavailableDescription, inline: true });
-
-    await this.logChannel.send({ embeds: [embed] });
-
-    if (this.data.file) {
-      await this.logChannel.send({
-        files: [{
-          attachment: this.data.file.path,
-          name: `${this.data.file.name}.txt`,
-        }],
-      });
-    }
+    await channel.send({ embeds: [embed] });
   }
 
   protected abstract before?(): Awaitable<void>;

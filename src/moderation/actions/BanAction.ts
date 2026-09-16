@@ -1,56 +1,43 @@
-import type { TextChannel } from 'discord.js';
-import {
-  GuildMember,
-  PermissionsBitField,
-  time as timeFormatter,
-  TimestampStyles,
-  User,
-} from 'discord.js';
+import { container } from '@sapphire/pieces';
+import { PermissionFlagsBits, TimestampStyles, time as timeFormatter } from 'discord.js';
 import pupa from 'pupa';
-import ConvictedUser from '@/app/models/convictedUser';
-import Sanction from '@/app/models/sanction';
-import ModerationError from '@/app/moderation/ModerationError';
-import ModerationHelper from '@/app/moderation/ModerationHelper';
-import ModerationAction from '@/app/moderation/actions/ModerationAction';
-import { SanctionsUpdates } from '@/app/types';
-import { noop } from '@/app/utils';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import * as messages from '#config/messages';
+import { roles } from '#config/settings';
+import { Sanction } from '#models/sanction';
+import { ModerationError } from '#moderation/ModerationError';
+import * as ModerationHelper from '#moderation/ModerationHelper';
+import { ModerationAction } from '#moderation/actions/ModerationAction';
+import { SanctionsUpdates } from '#types/index';
+import { noop, nullop } from '#utils/index';
 
-export default class BanAction extends ModerationAction {
+export class BanAction extends ModerationAction {
   protected before(): void {
-    this.client.currentlyBanning.add(this.data.victim.id);
+    this.client.currentlyBanning.add(this.data.victimId);
   }
 
   protected after(): void {
-    this.client.currentlyBanning.delete(this.data.victim.id);
-    this.client.cache.convictedUsers
-      .splice(this.client.cache.convictedUsers.findIndex(elt => elt.memberId === this.data.victim.id), 1);
+    this.client.currentlyBanning.delete(this.data.victimId);
   }
 
   protected async exec(): Promise<void> {
-    if (!this.data.duration)
-      throw new TypeError('Unexpected missing property: data.duration is not set.');
+    if (!this.data.duration) throw new TypeError('Unexpected missing property: data.duration is not set.');
 
-    if (this.data.duration === -1)
-      await this._hardban();
-    else if (this.updateInfos.isUpdate())
-      await this._updateBan();
-    else
-      await this._ban();
+    if (this.data.duration === -1) await this._hardban();
+    else if (this.updateInfos.isUpdate()) await this._updateBan();
+    else await this._ban();
   }
 
   private async _hardban(): Promise<void> {
-    await (this.data.victim.member ?? this.data.victim.user)
-      ?.send('https://tenor.com/view/cosmic-ban-ban-hammer-gif-14966695')
-      .catch(noop);
+    const victim =
+      (await container.client.guild.members.fetch(this.data.victimId).catch(nullop)) ??
+      (await container.client.users.fetch(this.data.victimId).catch(nullop));
+    await victim?.send('https://tenor.com/view/cosmic-ban-ban-hammer-gif-14966695').catch(noop);
 
     // 1. Add/Update the database
     try {
       if (this.updateInfos.isUpdate()) {
-        this.client.cache.channelBannedSilentUsers.delete(this.data.victim.id);
         await Sanction.findOneAndUpdate(
-          { memberId: this.data.victim.id, sanctionId: this.updateInfos.userDocument.currentBanId },
+          { userId: this.data.victimId, sanctionId: this.data.sanctionId },
           {
             $set: {
               duration: this.data.duration,
@@ -69,43 +56,23 @@ export default class BanAction extends ModerationAction {
           },
         );
       } else {
-        const user = await ConvictedUser.findOneAndUpdate(
-          { memberId: this.data.victim.id },
-          { currentBanId: this.data.sanctionId },
-          { upsert: true, new: true },
-        );
-        await Sanction.create({ ...this.data.toSchema(), user: user._id });
+        await Sanction.create({
+          ...this.data.toSchema(),
+          userId: this.data.victimId,
+        });
       }
     } catch (unknownError: unknown) {
       this.errorState.addError(
         new ModerationError()
           .from(unknownError as Error)
           .setMessage('An error occurred while inserting ban to database')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id),
+          .addDetail('Victim: ID', this.data.victimId),
       );
     }
 
-    // 2. If it is an update, save the messages
-    if (this.updateInfos.isUpdate()) {
-      const channelId = this.updateInfos.sanctionDocument?.informations?.banChannelId;
-      if (channelId) {
-        const channel = this.data.guild.channels.resolve(channelId);
-        if (channel?.isTextBased()) {
-          const allMessages = await ModerationHelper.getAllChannelMessages(channel);
-          const fileInfo = await ModerationHelper.getMessageFile(this.data, allMessages);
-          this.data.setFile(fileInfo);
-
-          await channel.delete();
-        }
-      }
-    }
-
-    // 3. Ban the member
+    // 2. Ban the member
     try {
-      await this.data.victim.member?.ban({
-        deleteMessageSeconds: this.data.shouldPurge ? 7 * 24 * 60 * 60 : 0,
+      await container.client.guild.members.ban(this.data.victimId, {
         reason: this.data.reason,
       });
     } catch (unknownError: unknown) {
@@ -113,10 +80,11 @@ export default class BanAction extends ModerationAction {
         new ModerationError()
           .from(unknownError as Error)
           .setMessage('Swan does not have sufficient permissions to ban a GuildMember')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id)
-          .addDetail('Ban Member Permission', this.data.guild.members.me?.permissions.has(PermissionsBitField.Flags.BanMembers)),
+          .addDetail('Victim ID', this.data.victimId)
+          .addDetail(
+            'Ban Member Permission',
+            container.client.guild.members.me?.permissions.has(PermissionFlagsBits.BanMembers),
+          ),
       );
     }
   }
@@ -125,18 +93,18 @@ export default class BanAction extends ModerationAction {
     // Update the database
     try {
       await Sanction.findOneAndUpdate(
-        { memberId: this.data.victim.id, sanctionId: this.updateInfos.userDocument.currentBanId },
+        { userId: this.data.victimId, sanctionId: this.data.sanctionId },
         {
           $set: {
             duration: this.data.duration,
-            finish: this.updateInfos.sanctionDocument.start + this.data.duration,
+            finish: (this.updateInfos.sanctionDocument?.start || 0) + this.data.duration,
           },
           $push: {
             updates: {
               date: this.data.start,
               moderator: this.data.moderatorId,
               type: SanctionsUpdates.Duration,
-              valueBefore: this.updateInfos.sanctionDocument.duration,
+              valueBefore: this.updateInfos.sanctionDocument?.duration || 0,
               valueAfter: this.data.duration,
               reason: this.data.reason,
             },
@@ -148,73 +116,18 @@ export default class BanAction extends ModerationAction {
         new ModerationError()
           .from(unknownError as Error)
           .setMessage('An error occurred while inserting ban to database')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id),
+          .addDetail('Victim ID', this.data.victimId),
       );
     }
   }
 
   private async _ban(): Promise<void> {
-    // 1. Create the private channel
-    let channel: TextChannel;
+    // 1. Add needed roles
     try {
-      channel = await ModerationHelper.getOrCreateChannel(this.data);
-      this.data.setInformations({ banChannelId: channel.id });
-
-      const explanation = pupa(messages.moderation.banExplanation, {
-        nameString: this.nameString,
-        reason: this.data.reason,
-        duration: this.formatDuration(this.data.duration),
-        expiration: timeFormatter(Math.round(this.data.finish / 1000), TimestampStyles.LongDateTime),
-      });
-      const message = await channel.send(explanation).catch(noop);
-      if (message)
-        await message.pin().catch(noop);
-    } catch (unknownError: unknown) {
-      this.errorState.addError(
-        new ModerationError()
-          .from(unknownError as Error)
-          .setMessage('Swan does not have sufficient permissions to create/get a TextChannel')
-          .addDetail('Manage Channel Permissions', this.data.guild.members.me?.permissions.has(PermissionsBitField.Flags.ManageChannels)),
-      );
-    }
-
-    // 2. Add to the database
-    try {
-      this.client.cache.channelBannedSilentUsers.add(this.data.victim.id);
-      const user = await ConvictedUser.findOneAndUpdate(
-        { memberId: this.data.victim.id },
-        { currentBanId: this.data.sanctionId },
-        { upsert: true, new: true },
-      );
-      await Sanction.create({
-        ...this.data.toSchema(),
-        informations: {
-          ...this.data.informations,
-          hasSentMessages: false,
-        },
-        user: user._id,
-      });
-    } catch (unknownError: unknown) {
-      this.errorState.addError(
-        new ModerationError()
-          .from(unknownError as Error)
-          .setMessage('An error occurred while inserting ban to database')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id),
-      );
-    }
-
-    // 3. Add needed roles
-    try {
-      const role = this.data.guild.roles.resolve(settings.roles.ban);
+      const role = container.client.guild.roles.resolve(roles.ban);
       if (role) {
-        if (this.data.victim.member) {
-          await ModerationHelper.removeAllRoles(this.data.victim.member);
-          await this.data.victim.member.roles.add(role);
-        }
+        const member = await container.client.guild.members.fetch(this.data.victimId);
+        await member.roles.set([role]);
       } else {
         throw new TypeError('Unable to resolve the ban role.');
       }
@@ -223,10 +136,63 @@ export default class BanAction extends ModerationAction {
         new ModerationError()
           .from(unknownError as Error)
           .setMessage('Swan does not have sufficient permissions to edit GuildMember roles')
-          .addDetail('Victim: GuildMember', this.data.victim.member instanceof GuildMember)
-          .addDetail('Victim: User', this.data.victim.user instanceof User)
-          .addDetail('Victim: ID', this.data.victim.id)
-          .addDetail('Manage Role Permissions', this.data.guild.members.me?.permissions.has(PermissionsBitField.Flags.ManageRoles)),
+          .addDetail('Victim ID', this.data.victimId)
+          .addDetail(
+            'Manage Role Permissions',
+            container.client.guild.members.me?.permissions.has(PermissionFlagsBits.ManageRoles),
+          ),
+      );
+    }
+
+    // 2. Create the private channel
+    try {
+      const thread = await ModerationHelper.getThread(this.data, true);
+
+      const explanation = pupa(messages.moderation.banExplanation, {
+        nameString: this.nameString,
+        reason: this.data.reason,
+        duration: this.formatDuration(this.data.duration),
+        expiration: timeFormatter(Math.round(this.data.finish / 1000), TimestampStyles.LongDateTime),
+      });
+
+      const message = await thread.send(explanation);
+      if (message) await message.pin().catch(noop);
+    } catch (unknownError: unknown) {
+      this.errorState.addError(
+        new ModerationError()
+          .from(unknownError as Error)
+          .setMessage('Swan does not have sufficient permissions to create/get a TextChannel')
+          .addDetail(
+            'Manage Channels Permissions',
+            container.client.guild.members.me?.permissions.has(PermissionFlagsBits.ManageChannels),
+          )
+          .addDetail(
+            'Manage Threads Permissions',
+            container.client.guild.members.me?.permissions.has(PermissionFlagsBits.ManageThreads),
+          )
+          .addDetail(
+            'Create Private Threads Permissions',
+            container.client.guild.members.me?.permissions.has(PermissionFlagsBits.CreatePrivateThreads),
+          )
+          .addDetail(
+            'Send Messages In Threads Permissions',
+            container.client.guild.members.me?.permissions.has(PermissionFlagsBits.SendMessagesInThreads),
+          ),
+      );
+    }
+
+    // 3. Add to the database
+    try {
+      await Sanction.create({
+        ...this.data.toSchema(),
+        userId: this.data.victimId,
+      });
+    } catch (unknownError: unknown) {
+      this.errorState.addError(
+        new ModerationError()
+          .from(unknownError as Error)
+          .setMessage('An error occurred while inserting ban to database')
+          .addDetail('Victim ID', this.data.victimId),
       );
     }
   }

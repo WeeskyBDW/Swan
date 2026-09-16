@@ -1,25 +1,18 @@
-import { model, Schema } from 'mongoose';
-import autopopulate from 'mongoose-autopopulate';
+import { Schema, model } from 'mongoose';
 import { nanoid } from 'nanoid';
-import type { SanctionDocument, SanctionModel } from '@/app/types';
-import { SanctionsUpdates, SanctionTypes } from '@/app/types';
+import type { SanctionDocument, SanctionModel } from '#types/index';
+import { SanctionTypes, SanctionsUpdates } from '#types/index';
 
 const SanctionSchema = new Schema<SanctionDocument, SanctionModel>({
-  memberId: {
+  userId: {
     type: String,
     required: true,
     index: true,
   },
-  user: {
-    type: Schema.Types.ObjectId,
-    required: true,
-    ref: 'ConvictedUser',
-    autopopulate: true,
-  },
   type: {
     type: String,
     required: true,
-    enum: Object.values(SanctionTypes),
+    enum: SanctionTypes,
   },
   moderator: {
     type: String,
@@ -51,45 +44,34 @@ const SanctionSchema = new Schema<SanctionDocument, SanctionModel>({
     default: (): string => nanoid(8),
     index: true,
   },
-  informations: {
-    shouldAutobanIfNoMessages: {
-      type: Boolean,
+  updates: [
+    {
+      date: {
+        type: Number,
+        required: true,
+        default: Date.now(),
+      },
+      moderator: {
+        type: String,
+        required: true,
+      },
+      type: {
+        type: String,
+        required: true,
+        enum: SanctionsUpdates,
+      },
+      valueBefore: {
+        type: Number,
+      },
+      valueAfter: {
+        type: Number,
+      },
+      reason: {
+        type: String,
+        required: true,
+      },
     },
-    banChannelId: {
-      type: String,
-    },
-    hasSentMessages: {
-      type: Boolean,
-    },
-  },
-  updates: [{
-    date: {
-      type: Number,
-      required: true,
-      default: Date.now(),
-    },
-    moderator: {
-      type: String,
-      required: true,
-    },
-    type: {
-      type: String,
-      required: true,
-      enum: Object.values(SanctionsUpdates),
-    },
-    valueBefore: {
-      type: Number,
-    },
-    valueAfter: {
-      type: Number,
-    },
-    reason: {
-      type: String,
-      required: true,
-    },
-  }],
+  ],
 });
 
-SanctionSchema.plugin(autopopulate);
-
-export default model<SanctionDocument, SanctionModel>('Sanction', SanctionSchema);
+export const Sanction = model<SanctionDocument, SanctionModel>('Sanction', SanctionSchema);

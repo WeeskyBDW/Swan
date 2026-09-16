@@ -1,4 +1,4 @@
-export interface DurationPart {
+interface DurationPart {
   number: string;
   unit: string;
 }
@@ -6,14 +6,13 @@ export interface DurationPart {
 const REGEX = /^(?<number>\d+) ?(?<unit>[a-z]+)?$/i;
 
 enum Durations {
-  /* eslint-disable no-multi-spaces, @typescript-eslint/prefer-literal-enum-member */
   Second = 1,
   Minute = 1 * 60,
-  Hour   = 1 * 60 * 60,
-  Day    = 1 * 60 * 60 * 24,
-  Week   = 1 * 60 * 60 * 24 * 7,
-  Month  = 1 * 60 * 60 * 24 * 30,
-  Year   = 1 * 60 * 60 * 24 * 365,
+  Hour = 1 * 60 * 60,
+  Day = 1 * 60 * 60 * 24,
+  Week = 1 * 60 * 60 * 24 * 7,
+  Month = 1 * 60 * 60 * 24 * 30,
+  Year = 1 * 60 * 60 * 24 * 365,
 }
 
 function tokenize(str: string): string[] {
@@ -37,8 +36,7 @@ function tokenize(str: string): string[] {
     }
   }
 
-  if (buf.length > 0)
-    units.push(buf.trim());
+  if (buf.length > 0) units.push(buf.trim());
   return units;
 }
 
@@ -54,8 +52,7 @@ const durations: Array<[values: string[], multiplier: Durations]> = [
 
 function convert(num: number, type: string): number {
   const multiplier = durations.find(([values]) => values.includes(type))?.[1];
-  if (multiplier)
-    return num * multiplier;
+  if (multiplier) return num * multiplier;
 
   throw new TypeError(`Invalid duration unit: ${type}`);
 }
@@ -66,7 +63,7 @@ function convert(num: number, type: string): number {
  * @returns The duration in milliseconds
  * @throws {TypeError} If the given duration is invalid, it will throw a TypeError
  */
-export default function getDuration(val: string): number {
+export function getDuration(val: string): number {
   let abs: number;
   let total = 0;
   if (val.length > 0 && val.length < 101) {
@@ -80,8 +77,7 @@ export default function getDuration(val: string): number {
       const nextUnit = durations.findIndex(([values]) => values.includes(previousUnit)) + 1;
       const newUnit = durations[nextUnit]?.[0][0];
 
-      if (!groups?.number || (!groups.unit && nextUnit === 0))
-        throw new TypeError('Value is an invalid duration');
+      if (!groups?.number || (!groups.unit && nextUnit === 0)) throw new TypeError('Value is an invalid duration');
 
       parts.push({ number: groups.number, unit: groups.unit ?? newUnit });
     }

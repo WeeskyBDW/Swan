@@ -1,17 +1,10 @@
 import { container } from '@sapphire/pieces';
-import type { GuildTextBasedChannel } from 'discord.js';
-import ModerationError from '@/app/moderation/ModerationError';
-import { noop } from '@/app/utils';
-import messages from '@/conf/messages';
+import * as messages from '#config/messages';
+import { channels } from '#config/settings';
+import { ModerationError } from '#moderation/ModerationError';
 
-export default class ErrorState {
-  channel: GuildTextBasedChannel;
-  errors: ModerationError[];
-
-  constructor(channel: GuildTextBasedChannel) {
-    this.channel = channel;
-    this.errors = [];
-  }
+export class ErrorState {
+  errors: ModerationError[] = [];
 
   public addError(error: ModerationError): void {
     this.errors.push(error);
@@ -21,16 +14,16 @@ export default class ErrorState {
     return this.errors.length > 0;
   }
 
-  public log(): void {
-    if (!this.hasError())
-      return;
+  public async log(): Promise<void> {
+    if (!this.hasError()) return;
 
-    void this.channel.send(messages.global.oops).catch(noop);
+    const channel = await container.client.guild.channels.fetch(channels.sanctionLog);
+    if (channel?.isTextBased()) await channel.send(messages.global.oops);
+
     for (const error of this.errors) {
       container.logger.error(error.message);
       if (error instanceof ModerationError) {
-        for (const [detail, value] of error.details.entries())
-          container.logger.info(`${detail}: ${value}`);
+        for (const [detail, value] of error.details.entries()) container.logger.info(`${detail}: ${value}`);
       }
       container.logger.info(error.stack, true);
     }

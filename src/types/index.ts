@@ -1,23 +1,7 @@
-
 import type { Endpoints } from '@octokit/types';
-import type { Command, CommandOptions } from '@sapphire/framework';
-import type { PieceLocation, StoreRegistryEntries } from '@sapphire/pieces';
-import type {
-  ApplicationCommandOptionData,
-  Guild,
-  GuildMember,
-  GuildTextBasedChannel,
-  Message,
-  User,
-} from 'discord.js';
-import type {
-  Document,
-  FilterQuery,
-  Model,
-  Types,
-} from 'mongoose';
-import type { SwanCommand } from '@/app/structures/commands/SwanCommand';
-import type settings from '@/conf/settings';
+import type { CommandOptions } from '@sapphire/framework';
+import type { Message, PermissionResolvable } from 'discord.js';
+import type { Document, Model } from 'mongoose';
 
 /* ****************** */
 /*  API Result Types  */
@@ -28,8 +12,8 @@ import type settings from '@/conf/settings';
 
 /** Types for the Github API's releases endpoint */
 type RawGithubReleaseResponse = Endpoints['GET /repos/{owner}/{repo}/releases']['response'];
+type GithubRelease = RawGithubReleaseResponse['data'][0];
 
-export type GithubRelease = RawGithubReleaseResponse['data'][0];
 export type GithubPrerelease = GithubRelease & { prerelease: true };
 export type GithubStableRelease = GithubRelease & { prerelease: false };
 
@@ -54,7 +38,7 @@ export interface SkriptToolsAddonResponse {
 }
 
 /** Represent the object that is returned when calling the skripttools API to get all addons */
-export type SkriptToolsAddonListResponse = Record<string, string[] | null>;
+export type SkriptToolsAddonList = Record<string, string[] | null>;
 
 /**
  * Represent the objects that are in the "articles" array that is returned
@@ -201,7 +185,6 @@ export interface InvisionMember {
 /** Represent a post object from the Skript-MC's Invision forums API. */
 export interface InvisionPost {
   id: number;
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   item_id: number;
   author: InvisionMember;
   date: string;
@@ -256,7 +239,6 @@ export interface InvisionResource {
 /** Represent a resource comment object from the Skript-MC's Invision forums API. */
 export interface InvisionResourceComment {
   id: number;
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   item_id: number;
   author: InvisionMember;
   date: string;
@@ -337,7 +319,6 @@ export interface Suggestion {
   response: string | null;
   discordSync: boolean;
   discordId: string | null;
-  // eslint-disable-next-line @typescript-eslint/naming-convention
   created_at: string;
 }
 
@@ -366,43 +347,12 @@ export interface PublishResponse extends SuggestionResponse {
 /** Options for the SwanCommand class */
 export interface SwanCommandOptions extends CommandOptions {
   command: string;
-  examples: string[];
-  permissions?: string[];
-  commandOptions: ApplicationCommandOptionData[];
+  dmPermission?: boolean;
+  defaultMemberPermissions?: PermissionResolvable;
 }
 
-export type SwanChatInputCommand = Required<Pick<Command, 'chatInputRun'>> & SwanCommand;
-export type SwanContextMenuCommand = Required<Pick<Command, 'contextMenuRun'>> & SwanCommand;
-
-/** Types of rules for where a command can be executed */
-export enum Rules {
-  OnlyBotChannel = 1,
-  NoHelpChannel = 1 << 1,
-  OnlyHelpChannel = 1 << 2,
-}
-
-/** Represent an addon that matches the requirements, used in commands/addonInfo.ts */
-export interface MatchingAddon {
-  file: string;
-  name: string;
-}
-
-/** Enforces that message.channel is a TextChannel or NewsChannel, not a DMChannel. */
-export type GuildMessage = Message & { channel: GuildTextBasedChannel; member: GuildMember; guild: Guild };
-
-/** Union type of all the channel we cache */
-export type ChannelSlug = keyof typeof settings.channels;
-
-/** All properties containing a array of channels */
-export type ChannelArraySlugs = 'help' | 'otherHelp' | 'skriptExtraHelp' | 'skriptHelp';
-
-/** All properties containing a single channel */
-export type ChannelSingleSlug = Exclude<ChannelSlug, ChannelArraySlugs>;
-
-/** Record of all the channel we cache internally */
-export type CachedChannels =
-  & Record<ChannelArraySlugs, GuildTextBasedChannel[]>
-  & Record<ChannelSingleSlug, GuildTextBasedChannel>;
+/** Enforces that the message is cached in a guild */
+export type GuildMessage = Message<true>;
 
 // #endregion
 
@@ -412,36 +362,6 @@ export type CachedChannels =
 
 // #region Various Moderation Types (VS Code)
 // region Various Moderation Types (JetBrains)
-
-export interface BanChannelMessage {
-  id: string;
-  content: string;
-  authorName: string;
-  authorId: string;
-  sentAt: number;
-  edited?: number | null;
-  attachments: Array<{ name: string; url: string }>;
-}
-
-/** The sanctions types that we track in the ConvictedUser database */
-export type TrackedSanctionTypes = SanctionTypes.Ban | SanctionTypes.Hardban | SanctionTypes.Mute;
-
-/** The name of the fields of the TrackedSanctionTypes */
-export type TrackedFieldNames = 'currentBanId' | 'currentMuteId';
-
-/** Represent the victim object of ModerationData#victim */
-export interface PersonInformations {
-  id?: string;
-  user?: User;
-  member?: GuildMember;
-}
-
-/** Extra sanctions informations in SanctionDocument#informations */
-export interface SanctionInformations {
-  shouldAutobanIfNoMessages?: boolean;
-  banChannelId?: string;
-  hasSentMessages?: boolean;
-}
 
 /** The object returned by ModerationData#toSchema */
 export interface ModerationDataResult {
@@ -453,7 +373,6 @@ export interface ModerationDataResult {
   duration: number;
   reason: string;
   revoked: boolean;
-  informations: SanctionInformations;
   sanctionId: string;
 }
 
@@ -480,7 +399,7 @@ export interface ModerationDataResult {
 /** Different types of possible sanctions */
 export enum SanctionTypes {
   Hardban = 'hardban',
-  Ban = 'ban',
+  TempBan = 'tempBan',
   Mute = 'mute',
   Warn = 'warn',
   Kick = 'kick',
@@ -518,66 +437,6 @@ export type CommandStatModel = Model<CommandStatDocument>;
 
 // #endregion
 
-/* **************************** */
-/*     Module Database Types    */
-/* **************************** */
-
-// #region Module Database Types (VS Code)
-// region Module Database Types (JetBrains)
-
-/** Interface for the "Module"'s mongoose schema */
-export interface SwanModuleBase {
-  name: string;
-  store: keyof StoreRegistryEntries;
-  location: PieceLocation;
-  enabled: boolean;
-}
-
-/** Interface for the "Module"'s mongoose document */
-export interface SwanModuleDocument extends SwanModuleBase, Document {}
-
-/** Interface for the "Module"'s mongoose model */
-export type SwanModuleModel = Model<SwanModuleDocument>;
-
-// #endregion
-
-/* ********************* */
-/*  Poll Database Types  */
-/* ********************* */
-
-// #region Poll Database Types (VS Code)
-// region Poll Database Types (JetBrains)
-
-/** The different question types available for the poll command */
-export enum QuestionType {
-  Yesno,
-  Choice,
-}
-
-/** Interface for the "Poll"'s mongoose schema */
-export interface PollBase {
-  messageId: string;
-  memberId: string;
-  channelId: string;
-  finish: number;
-  duration: number;
-  questionType: QuestionType;
-  // Object of reaction's name (i.e. "2⃣'"), with the array of ids of users whom choose this answer.
-  votes: Record<string, string[]>;
-  question: string;
-  customAnswers?: string[];
-  anonymous: boolean;
-  multiple: boolean;
-}
-
-/** Interface for the "Poll"'s mongoose document */
-export interface PollDocument extends PollBase, Document {}
-
-/** Interface for the "Poll"'s mongoose model */
-export type PollModel = Model<PollDocument>;
-
-// #endregion
-
 /* ************************ */
 /*  Message Database Types  */
 /* ************************ */
@@ -609,34 +468,6 @@ export type MessageModel = Model<MessageDocument>;
 
 // #endregion
 
-/* ****************************** */
-/*  ConvictedUser Database Types  */
-/* ****************************** */
-
-// #region ConvictedUser Database Types (VS Code)
-// region ConvictedUser Database Types (JetBrains)
-
-/** Interface for the "ConvictedUser"'s mongoose schema */
-export interface ConvictedUserBase {
-  memberId: string;
-  currentBanId?: string | null;
-  currentMuteId?: string | null;
-  currentWarnCount?: number | null;
-}
-
-/** Interface for the "ConvictedUser"'s mongoose document */
-export interface ConvictedUserDocument extends ConvictedUserBase, Document {}
-
-/** Interface for the "ConvictedUser"'s mongoose model */
-export interface ConvictedUserModel extends Model<ConvictedUserDocument> {
-  findOneOrCreate(
-    condition: FilterQuery<ConvictedUserDocument>,
-    doc: ConvictedUserBase,
-  ): Promise<ConvictedUserDocument>;
-}
-
-// #endregion
-
 /* ************************* */
 /*  Sanction Database Types  */
 /* ************************* */
@@ -654,10 +485,11 @@ export interface SanctionUpdate {
   reason: string;
 }
 
-/** Interface for the "Sanction"'s mongoose schema */
-export interface SanctionBase {
-  memberId: string;
-  user: ConvictedUserDocument | Types.ObjectId;
+/**
+ * Interface for the "Sanction"'s mongoose document.
+ */
+export interface SanctionDocument extends Document {
+  userId: string;
   type: SanctionTypes;
   moderator: string;
   start: number;
@@ -666,134 +498,11 @@ export interface SanctionBase {
   reason: string;
   revoked?: boolean;
   sanctionId: string;
-  informations?: SanctionInformations;
   updates?: SanctionUpdate[];
-}
-
-/**
- * Interface for the "Sanction"'s mongoose document.
- * It is not meant to be used, it is just a base which extends document, and modify SanctionBase to use
- * mongoose's types (allow things like .addToSet on the mongoose array)
- */
-interface SanctionBaseDocument extends SanctionBase, Document {
-  updates?: Types.Array<SanctionUpdate>;
-}
-
-/** Interface for the "Sanction"'s mongoose document, when the user field is not populated */
-export interface SanctionDocument extends SanctionBaseDocument {
-  user: ConvictedUserDocument['_id'];
-}
-
-/** Interface for the "Sanction"'s mongoose document, when the user field is populated */
-export interface SanctionPopulatedDocument extends SanctionBaseDocument {
-  user: ConvictedUserDocument;
 }
 
 /** Interface for the "Sanction"'s mongoose model */
 export type SanctionModel = Model<SanctionDocument>;
-
-// #endregion
-
-/* ***************************** */
-/*  ReactionRole Database Types  */
-/* ***************************** */
-
-// #region ReactionRole Database Types (VS Code)
-// region ReactionRole Database Types (JetBrains)
-
-/** Interface for the "ReactionRole"'s mongoose schema */
-export interface ReactionRoleBase {
-  messageId: string;
-  channelId: string;
-  givenRoleId: string;
-  reaction: string;
-}
-
-/** Interface for the "ReactionRole"'s mongoose document */
-export interface ReactionRoleDocument extends ReactionRoleBase, Document {}
-
-/** Interface for the "ReactionRole"'s mongoose model */
-export type ReactionRoleModel = Model<ReactionRoleDocument>;
-
-// #endregion
-
-/* ****************************** */
-/*   DiscordUser Database Types   */
-/* ****************************** */
-
-// #region DiscordUser Database Types (VS Code)
-// region DiscordUser Database Types (JetBrains)
-
-/** Interface for the "DiscordUser"'s mongoose schema */
-export interface DiscordUserBase {
-  userId: string;
-  username: string;
-  avatarUrl?: string | null;
-}
-
-/** Interface for the "DiscordUser"'s mongoose document */
-export interface DiscordUserDocument extends DiscordUserBase, Document {}
-
-/** Interface for the "DiscordUser"'s mongoose model */
-export interface DiscordUserModel extends Model<DiscordUserDocument> {
-  findOneOrCreate(
-    condition: FilterQuery<DiscordUserDocument>,
-    doc: DiscordUserBase,
-  ): Promise<DiscordUserDocument>;
-}
-
-// #endregion
-
-/* ****************************** */
-/*   Channel Database Types   */
-/* ****************************** */
-
-// #region Channel Database Types (VS Code)
-// region Channel Database Types (JetBrains)
-
-/** Interface for the "Channel"'s mongoose schema */
-export interface SwanChannelBase {
-  channelId: string;
-  categoryId: string;
-  name: string;
-  logged: boolean;
-}
-
-/** Interface for the "Channel"'s mongoose document */
-export interface SwanChannelDocument extends SwanChannelBase, Document {}
-
-/** Interface for the "Channel"'s mongoose model */
-export interface SwanChannelModel extends Model<SwanChannelDocument> {
-  findOneOrCreate(
-    condition: FilterQuery<SwanChannelDocument>,
-    doc: SwanChannelBase,
-  ): Promise<SwanChannelDocument>;
-}
-
-// #endregion
-
-/* ****************************** */
-/*   MessageLog Database Types   */
-/* ****************************** */
-
-// #region MessageLog Database Types (VS Code)
-// region MessageLog Database Types (JetBrains)
-
-/** Interface for the "MessageLog"'s mongoose schema */
-export interface MessageLogBase {
-  user: DiscordUserDocument;
-  messageId: string;
-  channelId: string;
-  oldContent: string;
-  editions: string[];
-  newContent?: string | null;
-}
-
-/** Interface for the "MessageLog"'s mongoose document */
-export interface MessageLogDocument extends MessageLogBase, Document {}
-
-/** Interface for the "MessageLog"'s mongoose model */
-export type MessageLogModel = Model<MessageLogDocument>;
 
 // #endregion
 
@@ -808,7 +517,7 @@ export type MessageLogModel = Model<MessageLogDocument>;
 export interface SimilarityMatch {
   matchedName: string;
   baseName: string;
-  similarity: number;
+  distance: number;
 }
 
 // #endregion

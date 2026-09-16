@@ -1,26 +1,29 @@
+import { ApplyOptions } from '@sapphire/decorators';
 import type { ChatInputCommand } from '@sapphire/framework';
 import type { ApplicationCommandOptionData, EmbedField, User } from 'discord.js';
 import {
   ApplicationCommandOptionType,
+  ApplicationCommandType,
   EmbedBuilder,
-  time as timeFormatter,
   TimestampStyles,
+  time as timeFormatter,
 } from 'discord.js';
 import pupa from 'pupa';
-import ApplySwanOptions from '@/app/decorators/swanOptions';
-import Sanction from '@/app/models/sanction';
-import PaginatedMessageEmbedFields from '@/app/structures/PaginatedMessageEmbedFields';
-import { SwanCommand } from '@/app/structures/commands/SwanCommand';
-import type { SanctionDocument } from '@/app/types';
-import { SanctionsUpdates, SanctionTypes } from '@/app/types';
-import { getUsername, toHumanDuration } from '@/app/utils';
-import { history as config } from '@/conf/commands/moderation';
-import messages from '@/conf/messages';
-import settings from '@/conf/settings';
+import { history as config } from '#config/commands/moderation';
+import * as messages from '#config/messages';
+import { colors, moderation } from '#config/settings';
+import { Sanction } from '#models/sanction';
+import { PaginatedMessageEmbedFields } from '#structures/PaginatedMessageEmbedFields';
+import { SwanCommand } from '#structures/commands/SwanCommand';
+import type { SanctionDocument } from '#types/index';
+import { SanctionTypes, SanctionsUpdates } from '#types/index';
+import { getUsername, toHumanDuration } from '#utils/index';
 
-@ApplySwanOptions(config)
-export default class HistoryCommand extends SwanCommand {
-  public static commandOptions: ApplicationCommandOptionData[] = [
+@ApplyOptions<SwanCommand.Options>(config.settings)
+export class HistoryCommand extends SwanCommand {
+  override canRunInDM = true;
+  commandType = ApplicationCommandType.ChatInput;
+  commandOptions: ApplicationCommandOptionData[] = [
     {
       type: ApplicationCommandOptionType.User,
       name: 'membre',
@@ -37,34 +40,42 @@ export default class HistoryCommand extends SwanCommand {
   }
 
   private async _exec(interaction: SwanCommand.ChatInputInteraction, user: User): Promise<void> {
-    const rawSanctions = await Sanction.find({ memberId: user.id });
+    const rawSanctions = await Sanction.find({ userId: user.id });
     if (rawSanctions.length === 0) {
       await interaction.reply(config.messages.notFound);
       return;
     }
     const sanctions = rawSanctions.reverse();
 
-    const fields: EmbedField[] = sanctions.map(sanc => ({ ...this._getSanctionContent(sanc), inline: false }));
+    const fields: EmbedField[] = sanctions.map((sanc) => ({
+      ...this._getSanctionContent(sanc),
+      inline: false,
+    }));
 
     // Get all the statistics.
     const stats = {
-      hardbans: sanctions.filter(s => s.type === SanctionTypes.Hardban).length,
-      bans: sanctions.filter(s => s.type === SanctionTypes.Ban).length,
-      mutes: sanctions.filter(s => s.type === SanctionTypes.Mute).length,
-      kicks: sanctions.filter(s => s.type === SanctionTypes.Kick).length,
-      currentWarns: sanctions.filter(s => s.type === SanctionTypes.Warn && !s.revoked).length,
-      warns: sanctions.filter(s => s.type === SanctionTypes.Warn).length,
+      hardbans: sanctions.filter((s) => s.type === SanctionTypes.Hardban).length,
+      bans: sanctions.filter((s) => s.type === SanctionTypes.TempBan).length,
+      mutes: sanctions.filter((s) => s.type === SanctionTypes.Mute).length,
+      kicks: sanctions.filter((s) => s.type === SanctionTypes.Kick).length,
+      currentWarns: sanctions.filter((s) => s.type === SanctionTypes.Warn && !s.revoked).length,
+      warns: sanctions.filter((s) => s.type === SanctionTypes.Warn).length,
     };
 
-    const sanctionUrl = settings.moderation.dashboardSanctionLink + user.id;
+    const sanctionUrl = moderation.dashboardSanctionLink + user.id;
     const embed = new EmbedBuilder()
       .setTitle(pupa(config.messages.title, { name: getUsername(user), sanctions }))
       .setURL(sanctionUrl)
-      .setDescription(pupa(config.messages.overview, { stats, warnLimit: settings.moderation.warnLimitBeforeBan }))
-      .setColor(settings.colors.default)
+      .setDescription(
+        pupa(config.messages.overview, {
+          stats,
+          warnLimit: moderation.warnLimitBeforeBan,
+        }),
+      )
+      .setColor(colors.default)
       .setTimestamp();
 
-    const allowedUser = await this.container.client.users.fetch(interaction.member.user.id);
+    const allowedUser = await this.container.client.users.fetch(interaction.user.id);
     await new PaginatedMessageEmbedFields()
       .setTemplate(embed)
       .setItems(fields)
@@ -94,12 +105,13 @@ export default class HistoryCommand extends SwanCommand {
 
       for (const update of sanction.updates) {
         // If there is a duration update, show it with a nice diff.
-        const diff = update.type === SanctionsUpdates.Duration
-          ? pupa(config.messages.sanctionDescription.timeDiff, {
-              valueBefore: update.valueBefore ? toHumanDuration(update.valueBefore) : messages.global.unknown(true),
-              valueAfter: update.valueAfter ? toHumanDuration(update.valueAfter) : messages.global.unknown(true),
-            })
-          : '\n';
+        const diff =
+          update.type === SanctionsUpdates.Duration
+            ? pupa(config.messages.sanctionDescription.timeDiff, {
+                valueBefore: update.valueBefore ? toHumanDuration(update.valueBefore) : messages.global.unknown(true),
+                valueAfter: update.valueAfter ? toHumanDuration(update.valueAfter) : messages.global.unknown(true),
+              })
+            : '\n';
 
         sanctionContent += pupa(config.messages.sanctionDescription.update, {
           date: timeFormatter(Math.round(update.date / 1000), TimestampStyles.LongDateTime),

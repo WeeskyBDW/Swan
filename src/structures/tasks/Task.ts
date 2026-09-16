@@ -1,7 +1,8 @@
 import type { IPieceError } from '@sapphire/framework';
 import { Piece } from '@sapphire/framework';
 import cron from 'node-cron';
-import { Events } from '@/app/types/sapphire';
+import type { ScheduledTask } from 'node-cron';
+import { Events } from '#types/sapphire';
 
 /**
  * The base task class. This class is abstract and is to be extended by subclasses, which should implement the methods.
@@ -18,21 +19,21 @@ import { Events } from '@/app/types/sapphire';
  * @ApplyOptions<TaskOptions>({ interval: 10_000 })
  * // or a cron
  * @ApplyOptions<TaskOptions>({ cron: '* * * * *' })
- * export default class MyTask extends Task {
+ * export class MyTask extends Task {
  *   public run(): void {
  *     this.container.logger.info('Task ran!');
  *   }
  * }
  * ```
  */
-export default abstract class Task extends Piece {
+export abstract class Task extends Piece {
   public readonly interval?: number;
   public readonly cron?: string;
   public readonly immediate: boolean;
   public readonly startupOrder?: number;
 
-  private _scheduleInterval: NodeJS.Timeout;
-  private _scheduleCron: cron.ScheduledTask;
+  private _scheduleInterval: NodeJS.Timeout | undefined;
+  private _scheduleCron: ScheduledTask | undefined;
   private readonly _callback: (() => Promise<void>) | null;
 
   constructor(context: Piece.Context, options: TaskOptions) {
@@ -45,27 +46,24 @@ export default abstract class Task extends Piece {
     this._callback = this._run.bind(this);
   }
 
-  public onLoad(): void {
-    if (!this._callback)
-      return;
+  public override onLoad(): void {
+    if (!this._callback) return;
 
-    if (this.interval)
-      this._scheduleInterval = setInterval(this._callback, this.interval);
-    else if (this.cron)
-      this._scheduleCron = cron.schedule(this.cron, this._callback);
+    if (this.interval) this._scheduleInterval = setInterval(this._callback, this.interval);
+    else if (this.cron) this._scheduleCron = cron.schedule(this.cron, this._callback);
 
-    if (this.immediate)
-      void this._callback();
+    if (this.immediate) void this._callback();
   }
 
-  public onUnload(): void {
-    if (this._scheduleInterval)
-      clearInterval(this._scheduleInterval);
-    if (this._scheduleCron)
-      this._scheduleCron.stop();
+  public override onUnload(): void {
+    if (this._scheduleInterval) clearInterval(this._scheduleInterval);
+    if (this._scheduleCron) this._scheduleCron.stop();
   }
 
-  public toJSON(): Piece.JSON & { interval: number | undefined; cron: string | undefined } {
+  public override toJSON(): Piece.JSON & {
+    interval: number | undefined;
+    cron: string | undefined;
+  } {
     return {
       ...super.toJSON(),
       interval: this.interval,
@@ -77,7 +75,9 @@ export default abstract class Task extends Piece {
     try {
       await this.run();
     } catch (error: unknown) {
-      this.container.client.emit(Events.TaskError, error as Error, { piece: this });
+      this.container.client.emit(Events.TaskError, error as Error, {
+        piece: this,
+      });
     }
   }
 
@@ -89,10 +89,18 @@ interface BaseTaskOptions extends Piece.Options {
 }
 
 export type TaskOptions =
-  | BaseTaskOptions & { cron: string } & { interval?: never } & { startupOrder?: never }
-  | BaseTaskOptions & { cron?: never } & { interval: number } & { startupOrder?: never }
-  | BaseTaskOptions & { cron?: never } & { interval?: never } & { startupOrder: number }
-  | BaseTaskOptions & { cron?: never } & { interval?: never } & { startupOrder?: never };
+  | (BaseTaskOptions & { cron: string } & { interval?: never } & {
+      startupOrder?: never;
+    })
+  | (BaseTaskOptions & { cron?: never } & { interval: number } & {
+      startupOrder?: never;
+    })
+  | (BaseTaskOptions & { cron?: never } & { interval?: never } & {
+      startupOrder: number;
+    })
+  | (BaseTaskOptions & { cron?: never } & { interval?: never } & {
+      startupOrder?: never;
+    });
 
 export interface TaskErrorPayload extends IPieceError {
   piece: Task;

@@ -1,47 +1,31 @@
-import ConvictedUser from '@/app/models/convictedUser';
-import Sanction from '@/app/models/sanction';
-import type ModerationData from '@/app/moderation/ModerationData';
-import type { ConvictedUserDocument, SanctionDocument, TrackedSanctionTypes } from '@/app/types';
-import { SanctionTypes } from '@/app/types';
+import { Sanction } from '#models/sanction';
+import type { ModerationData } from '#moderation/ModerationData';
+import * as ModerationHelper from '#moderation/ModerationHelper';
+import type { SanctionDocument } from '#types/index';
 
-const lastSanctionField = {
-  [SanctionTypes.Ban]: 'currentBanId',
-  [SanctionTypes.Hardban]: 'currentBanId',
-  [SanctionTypes.Mute]: 'currentMuteId',
-} as const;
-
-export default class ActionUpdateInformations {
+export class ActionUpdateInformations {
   data: ModerationData;
-  userDocument: ConvictedUserDocument | null;
   sanctionDocument: SanctionDocument | null;
 
   constructor(data: ModerationData) {
     this.data = data;
-    this.userDocument = null;
     this.sanctionDocument = null;
   }
 
   public async load(): Promise<void> {
-    this.userDocument = await ConvictedUser.findOne({ memberId: this.data.victim.id });
-    if (!this.userDocument)
-      return;
-
-    const fieldName = lastSanctionField[this.data.type as TrackedSanctionTypes];
-    if (!fieldName)
-      return;
+    const currentSanction = await ModerationHelper.getCurrentSanction(this.data.victimId, this.data.type);
+    if (!currentSanction) return;
 
     this.sanctionDocument = await Sanction.findOne({
-      memberId: this.data.victim.id,
+      userId: this.data.victimId,
       revoked: false,
-      sanctionId: this.userDocument?.[fieldName],
+      sanctionId: currentSanction.sanctionId,
     });
   }
 
-  public setUserDocument(userDocument: ConvictedUserDocument): void {
-    this.userDocument = userDocument;
-  }
-
-  public isUpdate(): boolean {
+  public isUpdate(): this is ActionUpdateInformations & {
+    sanctionDocument: SanctionDocument;
+  } {
     return Boolean(this.sanctionDocument);
   }
 }
